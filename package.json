@@ -1,0 +1,23 @@
+{
+  "name": "ari-appservice-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Azure App Service frontend for Invoke-ARI with Azure AD login and execution UI",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@azure/storage-blob": "^12.18.0",
+    "axios": "^1.7.7",
+    "body-parser": "^1.20.3",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.1",
+    "express-session": "^1.18.1",
+    "@azure/msal-node": "^3.7.4",
+    "uuid": "^11.0.3"
+  }
+}

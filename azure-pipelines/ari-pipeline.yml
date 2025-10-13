@@ -13,7 +13,7 @@ variables:
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: '18.x'
+    versionSpec: '20.x'
   displayName: 'Install Node.js'
 
 - script: |
@@ -39,4 +39,5 @@ steps:
     azureSubscription: 'rk-sp-azure-inventory-windows2'
     appType: 'webApp'
     appName: '$(appName)'
-    package: '$(Build.ArtifactStagingDirectory)/app.zip'
+    package: '$(Build.ArtifactStagingDirectory)/app.zip'    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, ...);

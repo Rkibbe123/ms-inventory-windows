@@ -28,19 +28,14 @@ steps:
     archiveType: 'zip'
     archiveFile: '$(Build.ArtifactStagingDirectory)/app.zip'
     replaceExistingArchive: true
-  displayName: 'Archive app files'
-  # Exclude node_modules, shell scripts, and docs from deployment artifact
-  excludePatterns: |
-    **/node_modules/**
-    **/*.sh
-    **/test-*
-    **/docs/**
-    **/*.md
-    **/*.yml
-    **/*.yaml
-    **/*.ps1
-    **/*.psd1
-    **/*.psm1
+    archiveFilePatterns: |
+      server.js
+      package.json
+      package-lock.json
+      web.config
+      public/**
+      views/**
+      src/**
 
 - publish: '$(Build.ArtifactStagingDirectory)/app.zip'
   artifact: drop

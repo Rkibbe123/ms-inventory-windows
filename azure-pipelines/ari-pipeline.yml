@@ -34,8 +34,7 @@ steps:
       package-lock.json
       web.config
       public/**
-      views/**
-      src/**
+      frontend/**
 
 - publish: '$(Build.ArtifactStagingDirectory)/app.zip'
   artifact: drop

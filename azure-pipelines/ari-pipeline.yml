@@ -35,6 +35,12 @@ steps:
     **/*.sh
     **/test-*
     **/docs/**
+    **/*.md
+    **/*.yml
+    **/*.yaml
+    **/*.ps1
+    **/*.psd1
+    **/*.psm1
 
 - publish: '$(Build.ArtifactStagingDirectory)/app.zip'
   artifact: drop

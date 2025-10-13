@@ -1,0 +1,173 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "webAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Web App"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources"
+      }
+    },
+    "sku": {
+      "type": "string",
+      "defaultValue": "B2",
+      "allowedValues": [
+        "B1",
+        "B2",
+        "B3",
+        "S1",
+        "S2",
+        "S3",
+        "P1v2",
+        "P2v2",
+        "P3v2"
+      ],
+      "metadata": {
+        "description": "SKU for App Service Plan"
+      }
+    },
+    "storageAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Storage Account for reports"
+      }
+    },
+    "azureClientId": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure AD Application (Client) ID"
+      }
+    },
+    "azureClientSecret": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Azure AD Application Client Secret"
+      }
+    },
+    "azureTenantId": {
+      "type": "string",
+      "defaultValue": "common",
+      "metadata": {
+        "description": "Azure AD Tenant ID (use 'common' for multi-tenant)"
+      }
+    }
+  },
+  "variables": {
+    "appServicePlanName": "[concat(parameters('webAppName'), '-plan')]",
+    "storageAccountName": "[parameters('storageAccountName')]",
+    "fileShareName": "ari-reports"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2021-09-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "accessTier": "Hot",
+        "supportsHttpsTrafficOnly": true
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/fileServices/shares",
+      "apiVersion": "2021-09-01",
+      "name": "[concat(variables('storageAccountName'), '/default/', variables('fileShareName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ],
+      "properties": {
+        "shareQuota": 100
+      }
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2021-03-01",
+      "name": "[variables('appServicePlanName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('sku')]"
+      },
+      "kind": "windows",
+      "properties": {
+        "reserved": false
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2021-03-01",
+      "name": "[parameters('webAppName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ],
+      "kind": "app",
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+        "httpsOnly": true,
+        "siteConfig": {
+          "pythonVersion": "3.9",
+          "windowsFxVersion": "PYTHON|3.9",
+          "appSettings": [
+            {
+              "name": "AZURE_CLIENT_ID",
+              "value": "[parameters('azureClientId')]"
+            },
+            {
+              "name": "AZURE_CLIENT_SECRET",
+              "value": "[parameters('azureClientSecret')]"
+            },
+            {
+              "name": "AZURE_TENANT_ID",
+              "value": "[parameters('azureTenantId')]"
+            },
+            {
+              "name": "AZURE_STORAGE_ACCOUNT_NAME",
+              "value": "[variables('storageAccountName')]"
+            },
+            {
+              "name": "AZURE_STORAGE_ACCOUNT_KEY",
+              "value": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2021-09-01').keys[0].value]"
+            },
+            {
+              "name": "AZURE_STORAGE_FILE_SHARE",
+              "value": "[variables('fileShareName')]"
+            },
+            {
+              "name": "SECRET_KEY",
+              "value": "[uniqueString(resourceGroup().id)]"
+            },
+            {
+              "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+              "value": "true"
+            }
+          ],
+          "alwaysOn": true,
+          "ftpsState": "Disabled",
+          "minTlsVersion": "1.2"
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "webAppUrl": {
+      "type": "string",
+      "value": "[concat('https://', parameters('webAppName'), '.azurewebsites.net')]"
+    },
+    "storageAccountName": {
+      "type": "string",
+      "value": "[variables('storageAccountName')]"
+    }
+  }
+}

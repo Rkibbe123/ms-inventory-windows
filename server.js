@@ -63,7 +63,7 @@ function buildRedirectUri(req) {
   const configured = process.env.REDIRECT_URI;
   if (configured) return configured;
   const proto = (req.headers['x-forwarded-proto'] || 'https');
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  const host = (req.headers['x-forwarded-host'] || req.headers.host);
   return `${proto}://${host}/auth/redirect`;
 }
 

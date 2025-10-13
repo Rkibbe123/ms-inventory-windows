@@ -8,7 +8,7 @@ pool:
 
 variables:
   appName: 'rk-azure-inventory-windows'
-  resourceGroup: '<your-resource-group-name>' # Set your resource group name here
+  resourceGroup: 'rg-rkibbe-2470' # Set your resource group name here
 
 steps:
 - task: NodeTool@0
@@ -39,5 +39,4 @@ steps:
     azureSubscription: 'rk-sp-azure-inventory-windows2'
     appType: 'webApp'
     appName: '$(appName)'
-    package: '$(Build.ArtifactStagingDirectory)/app.zip'    const PORT = process.env.PORT || 3000;
-    app.listen(PORT, ...);
+    package: '$(Build.ArtifactStagingDirectory)/app.zip'   

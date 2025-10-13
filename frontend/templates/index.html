@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Azure Resource Inventory{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="text-white mb-4">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </h1>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Run ARI Section -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-play-circle"></i> Run Azure Resource Inventory
+            </div>
+            <div class="card-body">
+                <form id="ariForm">
+                    <!-- Tenant Selection -->
+                    <div class="mb-4">
+                        <label for="tenantSelect" class="form-label">
+                            <strong>Select Tenant</strong> <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="tenantSelect" required>
+                            <option value="">Loading tenants...</option>
+                        </select>
+                        <small class="text-muted">Choose the Azure tenant to inventory</small>
+                    </div>
+
+                    <!-- Subscription Selection -->
+                    <div class="mb-4">
+                        <label for="subscriptionSelect" class="form-label">
+                            <strong>Select Subscription</strong> <span class="text-muted">(Optional)</span>
+                        </label>
+                        <select class="form-select" id="subscriptionSelect">
+                            <option value="">All Subscriptions</option>
+                        </select>
+                        <small class="text-muted">Leave blank to inventory all subscriptions in the tenant</small>
+                    </div>
+
+                    <!-- Options -->
+                    <div class="mb-4">
+                        <label class="form-label"><strong>Options</strong></label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="includeTags">
+                            <label class="form-check-label" for="includeTags">
+                                Include resource tags in the report
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="skipDiagram" checked>
+                            <label class="form-check-label" for="skipDiagram">
+                                Skip network diagram generation (faster)
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="runButton">
+                            <i class="bi bi-play-fill"></i> Run Inventory
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Progress Section -->
+                <div id="progressSection" class="mt-4" style="display: none;">
+                    <div class="alert alert-info">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm me-3" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <div>
+                                <strong>Running Azure Resource Inventory...</strong>
+                                <p class="mb-0">This may take several minutes depending on the size of your environment.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Result Section -->
+                <div id="resultSection" class="mt-4" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports Section -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-file-earmark-spreadsheet"></i> Recent Reports
+            </div>
+            <div class="card-body">
+                <div id="reportsList">
+                    <div class="text-center">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading reports...</p>
+                    </div>
+                </div>
+                <div class="d-grid gap-2 mt-3">
+                    <button class="btn btn-secondary" onclick="loadReports()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Card -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="bi bi-info-circle"></i> Information
+                </h6>
+                <p class="small text-muted mb-2">
+                    Azure Resource Inventory generates comprehensive Excel reports of your Azure environment.
+                </p>
+                <p class="small text-muted mb-0">
+                    Reports are stored in Azure File Storage for durable access.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let tenants = [];
+let subscriptions = [];
+
+// Load tenants on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadTenants();
+    loadReports();
+});
+
+// Load available tenants
+async function loadTenants() {
+    try {
+        const response = await fetch('/api/tenants');
+        if (!response.ok) {
+            throw new Error('Failed to load tenants');
+        }
+        tenants = await response.json();
+        
+        const tenantSelect = document.getElementById('tenantSelect');
+        tenantSelect.innerHTML = '<option value="">-- Select a tenant --</option>';
+        
+        tenants.forEach(tenant => {
+            const option = document.createElement('option');
+            option.value = tenant.tenantId;
+            option.textContent = `${tenant.displayName} (${tenant.tenantId})`;
+            tenantSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading tenants:', error);
+        document.getElementById('tenantSelect').innerHTML = 
+            '<option value="">Error loading tenants</option>';
+    }
+}
+
+// Load subscriptions when tenant is selected
+document.getElementById('tenantSelect').addEventListener('change', async function() {
+    const tenantId = this.value;
+    const subscriptionSelect = document.getElementById('subscriptionSelect');
+    
+    if (!tenantId) {
+        subscriptionSelect.innerHTML = '<option value="">All Subscriptions</option>';
+        return;
+    }
+    
+    subscriptionSelect.innerHTML = '<option value="">Loading...</option>';
+    
+    try {
+        const response = await fetch(`/api/subscriptions/${tenantId}`);
+        if (!response.ok) {
+            throw new Error('Failed to load subscriptions');
+        }
+        subscriptions = await response.json();
+        
+        subscriptionSelect.innerHTML = '<option value="">All Subscriptions</option>';
+        
+        subscriptions.forEach(sub => {
+            const option = document.createElement('option');
+            option.value = sub.subscriptionId;
+            option.textContent = `${sub.displayName} (${sub.state})`;
+            if (sub.state !== 'Enabled') {
+                option.disabled = true;
+            }
+            subscriptionSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading subscriptions:', error);
+        subscriptionSelect.innerHTML = '<option value="">Error loading subscriptions</option>';
+    }
+});
+
+// Handle form submission
+document.getElementById('ariForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const tenantId = document.getElementById('tenantSelect').value;
+    const subscriptionId = document.getElementById('subscriptionSelect').value;
+    const includeTags = document.getElementById('includeTags').checked;
+    const skipDiagram = document.getElementById('skipDiagram').checked;
+    
+    if (!tenantId) {
+        showResult('error', 'Please select a tenant');
+        return;
+    }
+    
+    // Show progress
+    document.getElementById('progressSection').style.display = 'block';
+    document.getElementById('resultSection').style.display = 'none';
+    document.getElementById('runButton').disabled = true;
+    
+    try {
+        const response = await fetch('/api/run-ari', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                tenantId: tenantId,
+                subscriptionId: subscriptionId || null,
+                includeTags: includeTags,
+                skipDiagram: skipDiagram
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.status === 'success') {
+            showResult('success', 
+                `<strong>Success!</strong> ARI execution completed.<br>
+                Generated ${result.files.length} file(s): ${result.files.join(', ')}`
+            );
+            loadReports(); // Refresh reports list
+        } else {
+            showResult('error', 
+                `<strong>Error:</strong> ${result.error || result.message}`
+            );
+        }
+    } catch (error) {
+        console.error('Error running ARI:', error);
+        showResult('error', `<strong>Error:</strong> ${error.message}`);
+    } finally {
+        document.getElementById('progressSection').style.display = 'none';
+        document.getElementById('runButton').disabled = false;
+    }
+});
+
+// Show result message
+function showResult(type, message) {
+    const resultSection = document.getElementById('resultSection');
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const icon = type === 'success' ? 'check-circle-fill' : 'exclamation-triangle-fill';
+    
+    resultSection.innerHTML = `
+        <div class="alert ${alertClass}">
+            <i class="bi bi-${icon}"></i> ${message}
+        </div>
+    `;
+    resultSection.style.display = 'block';
+}
+
+// Load reports list
+async function loadReports() {
+    const reportsList = document.getElementById('reportsList');
+    
+    try {
+        const response = await fetch('/api/reports');
+        if (!response.ok) {
+            throw new Error('Failed to load reports');
+        }
+        
+        const reports = await response.json();
+        
+        if (reports.length === 0) {
+            reportsList.innerHTML = `
+                <p class="text-muted text-center">No reports available yet</p>
+            `;
+            return;
+        }
+        
+        // Sort by name (which includes timestamp)
+        reports.sort((a, b) => b.name.localeCompare(a.name));
+        
+        let html = '<div class="list-group list-group-flush">';
+        reports.slice(0, 5).forEach(report => {
+            const sizeKB = Math.round(report.size / 1024);
+            html += `
+                <div class="list-group-item">
+                    <div class="d-flex w-100 justify-content-between align-items-center">
+                        <div style="flex: 1; min-width: 0;">
+                            <h6 class="mb-1 text-truncate" style="font-size: 0.85rem;">
+                                <i class="bi bi-file-earmark-spreadsheet-fill text-success"></i>
+                                ${report.name}
+                            </h6>
+                            <small class="text-muted">${sizeKB} KB</small>
+                        </div>
+                        <a href="/api/download/${report.name}" class="btn btn-sm btn-outline-primary ms-2">
+                            <i class="bi bi-download"></i>
+                        </a>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        reportsList.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading reports:', error);
+        reportsList.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i>
+                Failed to load reports
+            </div>
+        `;
+    }
+}
+</script>
+{% endblock %}

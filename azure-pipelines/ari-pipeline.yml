@@ -35,6 +35,7 @@ steps:
       web.config
       public/**
       frontend/**
+      !node_modules/**
 
 - publish: '$(Build.ArtifactStagingDirectory)/app.zip'
   artifact: drop

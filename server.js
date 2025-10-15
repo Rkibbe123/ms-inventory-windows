@@ -189,8 +189,18 @@ app.post('/auth/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
-app.get('/api/me', requireAuth, (req, res) => {
-  res.json({ username: req.session.username, homeAccountId: req.session.homeAccountId });
+
+function getUser(req) {
+  const header = req.headers['x-ms-client-principal'];
+  if (!header) return null;
+  const decoded = Buffer.from(header, 'base64').toString('utf8');
+  return JSON.parse(decoded);
+}
+
+app.get('/api/me', (req, res) => {
+  const user = getUser(req);
+  if (!user) return res.status(401).send('Not authenticated');
+  res.json(user);
 });
 
 app.get('/api/tenants', requireAuth, async (req, res) => {

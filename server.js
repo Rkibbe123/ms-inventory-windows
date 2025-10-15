@@ -201,8 +201,25 @@ app.get('/api/me', (req, res) => {
   // Log headers for debugging
   console.log('Request headers:', req.headers);
   const user = getUser(req);
-  if (!user) return res.status(401).send('Not authenticated');
-  res.json(user);
+    // If using Easy Auth, user info is in req.headers['x-ms-client-principal']
+    const principalHeader = req.headers['x-ms-client-principal'];
+    if (principalHeader) {
+        const principal = JSON.parse(Buffer.from(principalHeader, 'base64').toString('utf8'));
+        // Extract name from claims array
+        let name = null;
+        if (Array.isArray(principal.claims)) {
+            // Try to find 'name' claim, fallback to 'preferred_username' or 'email'
+            const nameClaim = principal.claims.find(c => c.typ === 'name');
+            const usernameClaim = principal.claims.find(c => c.typ === 'preferred_username');
+            const emailClaim = principal.claims.find(c => c.typ === 'email');
+            name = nameClaim?.val || usernameClaim?.val || emailClaim?.val || null;
+        }
+        // Return the principal object with a top-level 'name' property for frontend display
+        res.json({ ...principal, name });
+        return;
+    }
+    // Fallback: not authenticated
+    res.status(401).json({ error: 'Not authenticated' });
 });
 
 app.get('/api/tenants', requireAuth, async (req, res) => {

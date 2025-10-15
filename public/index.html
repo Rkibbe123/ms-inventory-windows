@@ -121,7 +121,7 @@
       poll();
     }
 
-    loginBtn.onclick = () => { window.location = '/auth/login'; };
+  loginBtn.onclick = () => { window.location = '/.auth/login/aad'; };
     logoutBtn.onclick = async () => { await postJSON('/auth/logout', {}); await refreshAuth(); };
     tenantSelect.onchange = loadSubscriptions;
 

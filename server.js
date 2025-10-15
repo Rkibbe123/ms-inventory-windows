@@ -13,7 +13,6 @@ Notes:
 - The app uses delegated user tokens to call ARM and passes a tenant-scoped ARM token to PowerShell.
 */
 const express = require('express');
-const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const path = require('path');
@@ -69,31 +68,10 @@ function buildRedirectUri(req) {
 
 function requireAuth(req, res, next) {
   if (req.user) return next();
-  // fallback: legacy session (for local/dev)
-  if (req.session && req.session.homeAccountId) return next();
   // Not authenticated
   return res.redirect('/.auth/login/aad');
 }
 
-async function getAccount(req) {
-  if (!req.session || !req.session.homeAccountId) return null;
-  return await getCca().getTokenCache().getAccountByHomeId(req.session.homeAccountId);
-}
-
-async function acquireArmTokenForTenant(req, tenantId) {
-  const account = await getAccount(req);
-  if (!account) throw new Error('No account in session');
-  const authority = `https://login.microsoftonline.com/${tenantId}`;
-  const scopes = ['https://management.azure.com/.default', 'offline_access'];
-  try {
-    const result = await getCca().acquireTokenSilent({ account, authority, scopes });
-    return result.accessToken;
-  } catch (err) {
-    // If silent fails due to authority/tenant change, try by code-refresh using the common authority as a fallback
-    console.error('acquireTokenSilent failed:', err.message);
-    throw err;
-  }
-}
 
 function selectPowerShellExecutable() {
   const candidates = [
@@ -107,6 +85,7 @@ function selectPowerShellExecutable() {
   }
   return process.platform === 'win32' ? 'powershell.exe' : 'pwsh';
 }
+
 
 const jobs = new Map();
 
@@ -130,14 +109,7 @@ async function uploadOutputsToBlob(jobId) {
   return { uploaded: true, urls: uploads };
 }
 
-function guessContentType(name) {
-  if (name.endsWith('.xlsx')) return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-  if (name.endsWith('.xml')) return 'application/xml';
-  if (name.endsWith('.json')) return 'application/json';
-  if (name.endsWith('.log') || name.endsWith('.txt')) return 'text/plain';
-  return 'application/octet-stream';
-}
-
+// Express app setup
 const app = express();
 
 // Global error logging middleware (logs all errors to console and returns 500)
@@ -148,14 +120,6 @@ app.use((err, req, res, next) => {
 app.set('trust proxy', 1);
 app.use(cookieParser());
 app.use(bodyParser.json());
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || 'dev-insecure-secret',
-    resave: false,
-    saveUninitialized: false,
-    cookie: { secure: NODE_ENV === 'production' }
-  })
-);
 
 // Easy Auth trust middleware: parse X-MS-CLIENT-PRINCIPAL and set req.user
 app.use((req, res, next) => {
@@ -170,23 +134,13 @@ app.use((req, res, next) => {
 app.use('/outputs', express.static(OUTPUTS_DIR));
 app.use(express.static(path.join(__dirname, 'public')));
 
-
+// Logout endpoint (no session logic)
 app.post('/auth/logout', (req, res) => {
-  req.session.destroy(() => res.json({ ok: true }));
+  res.json({ ok: true });
 });
 
-
-function getUser(req) {
-  const header = req.headers['x-ms-client-principal'];
-  if (!header) return null;
-  const decoded = Buffer.from(header, 'base64').toString('utf8');
-  return JSON.parse(decoded);
-}
-
 app.get('/api/me', requireAuth, (req, res) => {
-  // If using Easy Auth, user info is in req.user
   if (req.user) {
-    // Extract name from claims array
     let name = null;
     if (Array.isArray(req.user.claims)) {
       const nameClaim = req.user.claims.find(c => c.typ === 'name');
@@ -197,116 +151,17 @@ app.get('/api/me', requireAuth, (req, res) => {
     res.json({ ...req.user, name });
     return;
   }
-  // fallback: legacy session (for local/dev)
   res.status(401).json({ error: 'Not authenticated' });
 });
 
-app.get('/api/tenants', requireAuth, async (req, res) => {
-  try {
-    // Use common authority token to list tenants
-    const account = await getAccount(req);
-    const result = await getCca().acquireTokenSilent({ account, authority: 'https://login.microsoftonline.com/common', scopes: ['https://management.azure.com/.default'] });
-    const token = result.accessToken;
-    const { data } = await axios.get('https://management.azure.com/tenants?api-version=2020-01-01', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const tenants = (data.value || []).map((t) => ({ tenantId: t.tenantId, displayName: t.displayName || t.tenantId }));
-    res.json({ tenants });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-app.get('/api/subscriptions', requireAuth, async (req, res) => {
-  try {
-    const { tenantId } = req.query;
-    if (!tenantId) return res.status(400).json({ error: 'tenantId_required' });
-    const token = await acquireArmTokenForTenant(req, tenantId);
-    const { data } = await axios.get('https://management.azure.com/subscriptions?api-version=2021-01-01', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const subs = (data.value || []).map((s) => ({ subscriptionId: s.subscriptionId, displayName: s.displayName, state: s.state }));
-    res.json({ subscriptions: subs });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
-app.post('/api/run', requireAuth, async (req, res) => {
-  try {
-    const { tenantId, subscriptionId } = req.body || {};
-    if (!tenantId) return res.status(400).json({ error: 'tenantId_required' });
-    const accessToken = await acquireArmTokenForTenant(req, tenantId);
-    const accountId = req.session.username;
-    const jobId = uuidv4();
-    const jobDir = path.join(OUTPUTS_DIR, jobId);
-    fs.mkdirSync(jobDir, { recursive: true });
 
-    const logPath = path.join(jobDir, 'run.log');
-    const logStream = fs.createWriteStream(logPath, { flags: 'a' });
 
-    const psExe = selectPowerShellExecutable();
-    const scriptPath = path.join(__dirname, 'powershell', 'run-ari.ps1');
 
-    const args = [];
-    if (psExe.toLowerCase().includes('pwsh')) {
-      args.push('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File');
-    } else {
-      args.push('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File');
-    }
-    args.push(scriptPath);
-    args.push('-TenantId', tenantId);
-    if (subscriptionId) { args.push('-SubscriptionId', subscriptionId); }
-    args.push('-AccessToken', accessToken);
-    args.push('-AccountId', accountId);
-    args.push('-OutputDir', jobDir);
-    args.push('-AzureEnvironment', AZURE_ENVIRONMENT);
 
-    const { spawn } = require('child_process');
-    const child = spawn(psExe, args, { windowsHide: true });
 
-    const jobInfo = { id: jobId, status: 'running', startedAt: new Date().toISOString(), logPath, outputDir: jobDir, processId: child.pid };
-    jobs.set(jobId, jobInfo);
-
-    child.stdout.on('data', (d) => logStream.write(d));
-    child.stderr.on('data', (d) => logStream.write(d));
-
-    child.on('exit', async (code) => {
-      logStream.end();
-      jobInfo.endedAt = new Date().toISOString();
-      jobInfo.exitCode = code;
-      jobInfo.status = code === 0 ? 'succeeded' : 'failed';
-      try {
-        const upload = await uploadOutputsToBlob(jobId);
-        jobInfo.upload = upload;
-      } catch (e) {
-        jobInfo.uploadError = e.message;
-      }
-      jobs.set(jobId, jobInfo);
-    });
-
-    res.json({ jobId, status: 'running', outputsUrl: `/outputs/${jobId}/`, logUrl: `/api/jobs/${jobId}/log` });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/jobs/:id/status', requireAuth, (req, res) => {
-  const job = jobs.get(req.params.id);
-  if (!job) return res.status(404).json({ error: 'job_not_found' });
-  const files = fs.existsSync(job.outputDir)
-    ? fs.readdirSync(job.outputDir).filter((n) => fs.statSync(path.join(job.outputDir, n)).isFile())
-    : [];
-  res.json({ ...job, files });
-});
-
-app.get('/api/jobs/:id/log', requireAuth, (req, res) => {
-  const job = jobs.get(req.params.id);
-  if (!job) return res.status(404).send('Not found');
-  if (!fs.existsSync(job.logPath)) return res.status(404).send('Log not found');
-  res.setHeader('Content-Type', 'text/plain');
-  fs.createReadStream(job.logPath).pipe(res);
-});
+// (API endpoints for tenants, subscriptions, run, jobs, etc. should be re-implemented to use only Easy Auth and Service Principal as needed)
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

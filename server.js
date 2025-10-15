@@ -198,6 +198,8 @@ function getUser(req) {
 }
 
 app.get('/api/me', (req, res) => {
+  // Log headers for debugging
+  console.log('Request headers:', req.headers);
   const user = getUser(req);
   if (!user) return res.status(401).send('Not authenticated');
   res.json(user);

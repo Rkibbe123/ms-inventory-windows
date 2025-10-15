@@ -21,6 +21,11 @@ function Invoke-AzureRAMPInventory {
         [switch]$StateRAMP
         )
 
+    # Default to environment variables if parameters are not provided
+    if (-not $AppId -and $env:AppId) { $AppId = $env:AppId }
+    if (-not $Secret -and $env:Secret) { $Secret = $env:Secret }
+    if (-not $TenantID -and $env:TenantID) { $TenantID = $env:TenantID }
+
     $TotalRunTime = [System.Diagnostics.Stopwatch]::StartNew()
 
 

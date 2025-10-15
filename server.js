@@ -109,7 +109,26 @@ async function uploadOutputsToBlob(jobId) {
   return { uploaded: true, urls: uploads };
 }
 
-// Express app setup
+
+// Startup log to iisnode log directory
+try {
+  const logDir = process.env.IISNODE_LOG_FILE ? path.dirname(process.env.IISNODE_LOG_FILE) : 'D:/home/LogFiles/iisnode';
+  const logPath = path.join(logDir, 'startup.log');
+  fs.appendFileSync(logPath, `[${new Date().toISOString()}] App startup\n`);
+} catch (e) {
+  // ignore
+}
+
+// Global uncaught exception handler
+process.on('uncaughtException', (err) => {
+  try {
+    const logDir = process.env.IISNODE_LOG_FILE ? path.dirname(process.env.IISNODE_LOG_FILE) : 'D:/home/LogFiles/iisnode';
+    const logPath = path.join(logDir, 'uncaught.log');
+    fs.appendFileSync(logPath, `[${new Date().toISOString()}] Uncaught Exception: ${err.stack || err}\n`);
+  } catch (e) {}
+  process.exit(1);
+});
+
 const app = express();
 
 // Global error logging middleware (logs all errors to console and returns 500)

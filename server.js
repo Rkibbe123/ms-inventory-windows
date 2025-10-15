@@ -68,10 +68,11 @@ function buildRedirectUri(req) {
 }
 
 function requireAuth(req, res, next) {
-  if (!req.session || !req.session.homeAccountId) {
-    return res.status(401).json({ error: 'not_authenticated' });
-  }
-  next();
+  if (req.user) return next();
+  // fallback: legacy session (for local/dev)
+  if (req.session && req.session.homeAccountId) return next();
+  // Not authenticated
+  return res.redirect('/.auth/login/aad');
 }
 
 async function getAccount(req) {
@@ -150,6 +151,16 @@ app.use(
   })
 );
 
+// Easy Auth trust middleware: parse X-MS-CLIENT-PRINCIPAL and set req.user
+app.use((req, res, next) => {
+  const hdr = req.headers['x-ms-client-principal'];
+  if (hdr) {
+    const buf = Buffer.from(hdr, 'base64');
+    try { req.user = JSON.parse(buf.toString('utf8')); } catch {}
+  }
+  next();
+});
+
 app.use('/outputs', express.static(OUTPUTS_DIR));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -197,29 +208,22 @@ function getUser(req) {
   return JSON.parse(decoded);
 }
 
-app.get('/api/me', (req, res) => {
-  // Log headers for debugging
-  console.log('Request headers:', req.headers);
-  const user = getUser(req);
-    // If using Easy Auth, user info is in req.headers['x-ms-client-principal']
-    const principalHeader = req.headers['x-ms-client-principal'];
-    if (principalHeader) {
-        const principal = JSON.parse(Buffer.from(principalHeader, 'base64').toString('utf8'));
-        // Extract name from claims array
-        let name = null;
-        if (Array.isArray(principal.claims)) {
-            // Try to find 'name' claim, fallback to 'preferred_username' or 'email'
-            const nameClaim = principal.claims.find(c => c.typ === 'name');
-            const usernameClaim = principal.claims.find(c => c.typ === 'preferred_username');
-            const emailClaim = principal.claims.find(c => c.typ === 'email');
-            name = nameClaim?.val || usernameClaim?.val || emailClaim?.val || null;
-        }
-        // Return the principal object with a top-level 'name' property for frontend display
-        res.json({ ...principal, name });
-        return;
+app.get('/api/me', requireAuth, (req, res) => {
+  // If using Easy Auth, user info is in req.user
+  if (req.user) {
+    // Extract name from claims array
+    let name = null;
+    if (Array.isArray(req.user.claims)) {
+      const nameClaim = req.user.claims.find(c => c.typ === 'name');
+      const usernameClaim = req.user.claims.find(c => c.typ === 'preferred_username');
+      const emailClaim = req.user.claims.find(c => c.typ === 'email');
+      name = nameClaim?.val || usernameClaim?.val || emailClaim?.val || null;
     }
-    // Fallback: not authenticated
-    res.status(401).json({ error: 'Not authenticated' });
+    res.json({ ...req.user, name });
+    return;
+  }
+  // fallback: legacy session (for local/dev)
+  res.status(401).json({ error: 'Not authenticated' });
 });
 
 app.get('/api/tenants', requireAuth, async (req, res) => {

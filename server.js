@@ -164,37 +164,6 @@ app.use((req, res, next) => {
 app.use('/outputs', express.static(OUTPUTS_DIR));
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/auth/login', async (req, res) => {
-  try {
-    const redirectUri = buildRedirectUri(req);
-    const authCodeUrlParameters = {
-      scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'offline_access'],
-      redirectUri,
-      prompt: 'select_account'
-    };
-    const authCodeUrl = await getCca().getAuthCodeUrl(authCodeUrlParameters);
-    res.redirect(authCodeUrl);
-  } catch (err) {
-    res.status(500).send(`Login error: ${err.message}`);
-  }
-});
-
-app.get('/auth/redirect', async (req, res) => {
-  try {
-    const redirectUri = buildRedirectUri(req);
-    const tokenResponse = await getCca().acquireTokenByCode({
-      code: req.query.code,
-      scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'email', 'offline_access'],
-      redirectUri
-    });
-    const account = tokenResponse.account;
-    req.session.homeAccountId = account.homeAccountId;
-    req.session.username = account.username;
-    res.redirect('/');
-  } catch (err) {
-    res.status(500).send(`Auth redirect error: ${err.message}`);
-  }
-});
 
 app.post('/auth/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));

@@ -161,7 +161,67 @@ app.get('/api/me', requireAuth, (req, res) => {
 
 
 
-// (API endpoints for tenants, subscriptions, run, jobs, etc. should be re-implemented to use only Easy Auth and Service Principal as needed)
+
+// Utility: log to iisnode log file
+function logIISNode(msg) {
+  try {
+    const logPath = process.env.IISNODE_LOG_FILE || path.join(__dirname, 'iisnode.log');
+    fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`);
+  } catch (e) {
+    // ignore
+  }
+}
+
+// Service Principal ARM token acquisition
+async function getServicePrincipalToken(tenantId) {
+  const cca = getCca();
+  const authority = `https://login.microsoftonline.com/${tenantId}`;
+  const scopes = ['https://management.azure.com/.default'];
+  const result = await cca.acquireTokenByClientCredential({ authority, scopes });
+  return result.accessToken;
+}
+
+// GET /api/tenants - list tenants visible to the Service Principal
+app.get('/api/tenants', requireAuth, async (req, res) => {
+  logIISNode('GET /api/tenants called');
+  try {
+    // Use the "common" endpoint to list tenants
+    const token = await getServicePrincipalToken('common');
+    const { data } = await axios.get('https://management.azure.com/tenants?api-version=2020-01-01', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const tenants = (data.value || []).map((t) => ({ tenantId: t.tenantId, displayName: t.displayName || t.tenantId }));
+    res.json({ tenants });
+  } catch (err) {
+    logIISNode('Error in /api/tenants: ' + err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/subscriptions?tenantId=... - list subscriptions for a tenant
+app.get('/api/subscriptions', requireAuth, async (req, res) => {
+  logIISNode('GET /api/subscriptions called');
+  try {
+    const { tenantId } = req.query;
+    if (!tenantId) return res.status(400).json({ error: 'tenantId_required' });
+    const token = await getServicePrincipalToken(tenantId);
+    const { data } = await axios.get('https://management.azure.com/subscriptions?api-version=2021-01-01', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const subs = (data.value || []).map((s) => ({ subscriptionId: s.subscriptionId, displayName: s.displayName, state: s.state }));
+    res.json({ subscriptions: subs });
+  } catch (err) {
+    logIISNode('Error in /api/subscriptions: ' + err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/run - start backend job (stub, logs call)
+app.post('/api/run', requireAuth, async (req, res) => {
+  logIISNode('POST /api/run called');
+  // This is a stub; implement PowerShell job launch as needed
+  res.json({ jobId: 'stub', status: 'running', outputsUrl: '/outputs/stub/', logUrl: '/api/jobs/stub/log' });
+});
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

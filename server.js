@@ -139,6 +139,12 @@ function guessContentType(name) {
 }
 
 const app = express();
+
+// Global error logging middleware (logs all errors to console and returns 500)
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err.stack || err);
+  res.status(500).json({ error: 'Internal server error', details: err.message });
+});
 app.set('trust proxy', 1);
 app.use(cookieParser());
 app.use(bodyParser.json());

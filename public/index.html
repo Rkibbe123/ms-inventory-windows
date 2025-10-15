@@ -71,7 +71,7 @@
         const me = await getJSON('/api/me');
         loginBtn.classList.add('hidden');
         logoutBtn.classList.remove('hidden');
-        userSpan.textContent = `Signed in as ${me.username}`;
+      userSpan.textContent = `Signed in as ${me.userDetails || me.username || 'unknown'}`;
         appDiv.classList.remove('hidden');
         await loadTenants();
       } catch {

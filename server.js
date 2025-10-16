@@ -312,24 +312,6 @@ app.post('/api/run', requireAuth, async (req, res) => {
     `subscriptionId: ${subscriptionId}`
   ].join('\n');
   fs.appendFileSync(argsLogPath, debugArgsLog + '\n');
-  // Validate arguments
-  if (!tenantId || typeof tenantId !== 'string' || !tenantId.trim()) {
-    logIISNode('ERROR: Missing or empty tenantId in /api/run');
-    return res.status(400).json({ error: 'Missing or empty tenantId' });
-  }
-  if (!subscriptionId || typeof subscriptionId !== 'string' || !subscriptionId.trim()) {
-    logIISNode('ERROR: Missing or empty subscriptionId in /api/run');
-    return res.status(400).json({ error: 'Missing or empty subscriptionId' });
-  }
-  const jobId = uuidv4();
-  const jobDir = path.join(OUTPUTS_DIR, jobId);
-  try {
-    fs.mkdirSync(jobDir, { recursive: true });
-  } catch (err) {
-    const logPath = path.join(jobDir, 'job.log');
-    fs.appendFileSync(logPath, `[ERROR] Failed to create output directory: ${jobDir}\n${err.stack}\n`);
-    return res.status(500).json({ error: `Failed to create output directory: ${jobDir}` });
-  }
   const logPath = path.join(jobDir, 'job.log');
   const psExe = selectPowerShellExecutable();
   // Always use service principal credentials from .env

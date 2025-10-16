@@ -19,21 +19,30 @@
   <h2>Azure Resource Inventory (Invoke-ARI) - App Service Frontend</h2>
 
   <div class="row" id="authRow">
-    <button id="loginBtn">Sign in with Microsoft</button>
-    <button id="logoutBtn" class="hidden">Sign out</button>
     <span id="userSpan" class="muted"></span>
+    <button id="logoutBtn" class="hidden">Sign out</button>
   </div>
 
   <div id="app" class="hidden">
     <div class="row">
       <label>Tenant</label><br />
-      <select id="tenantSelect"></select>
+     <select id="tenantSelect"></select>
+     <div id="manual-tenant-entry" style="display:none; margin-top:10px;">
+       <label for="manual-tenant-id">Or enter Tenant ID manually:</label><br />
+       <input type="text" id="manual-tenant-id" placeholder="Enter Tenant ID manually" style="width: 250px;" />
+       <button id="manual-tenant-btn" type="button">Use Tenant ID</button>
+     </div>
     </div>
     <div class="row">
       <label>Subscription (optional)</label><br />
       <select id="subscriptionSelect">
         <option value="">All accessible in tenant</option>
       </select>
+      <div id="manual-subscription-entry" style="margin-top:10px;">
+        <label for="manual-subscription-id">Or enter Subscription ID manually:</label><br />
+        <input type="text" id="manual-subscription-id" placeholder="Enter Subscription ID manually" style="width: 250px;" />
+        <button id="manual-subscription-btn" type="button">Use Subscription ID</button>
+      </div>
     </div>
     <div class="row">
       <button id="runBtn">Run Invoke-ARI</button>
@@ -45,96 +54,141 @@
   </div>
 
   <script>
-    const loginBtn = document.getElementById('loginBtn');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const userSpan = document.getElementById('userSpan');
-    const appDiv = document.getElementById('app');
-    const tenantSelect = document.getElementById('tenantSelect');
-    const subscriptionSelect = document.getElementById('subscriptionSelect');
-    const runBtn = document.getElementById('runBtn');
-    const statusDiv = document.getElementById('status');
+    document.addEventListener('DOMContentLoaded', function() {
+      const loginBtn = document.getElementById('loginBtn');
+      const logoutBtn = document.getElementById('logoutBtn');
+      const userSpan = document.getElementById('userSpan');
+      const appDiv = document.getElementById('app');
+      const tenantSelect = document.getElementById('tenantSelect');
+      const subscriptionSelect = document.getElementById('subscriptionSelect');
+      const runBtn = document.getElementById('runBtn');
+      const statusDiv = document.getElementById('status');
 
-    async function getJSON(url) {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    }
-
-    async function postJSON(url, body) {
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)});
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    }
-
-    async function refreshAuth() {
-      try {
-        const me = await getJSON('/api/me');
-        loginBtn.classList.add('hidden');
-        logoutBtn.classList.remove('hidden');
-    userSpan.textContent = `Signed in as ${me.name || me.userDetails || me.username || 'unknown'}`;
-        appDiv.classList.remove('hidden');
-        await loadTenants();
-      } catch {
-        loginBtn.classList.remove('hidden');
-        logoutBtn.classList.add('hidden');
-        userSpan.textContent = '';
-        appDiv.classList.add('hidden');
+      async function getJSON(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
       }
-    }
 
-    async function loadTenants() {
-      tenantSelect.innerHTML = '';
-      const data = await getJSON('/api/tenants');
-      for (const t of data.tenants) {
-        const opt = document.createElement('option');
-        opt.value = t.tenantId;
-        opt.textContent = `${t.displayName || t.tenantId} (${t.tenantId})`;
-        tenantSelect.appendChild(opt);
+      async function postJSON(url, body) {
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)});
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
       }
-      await loadSubscriptions();
-    }
 
-    async function loadSubscriptions() {
-      subscriptionSelect.innerHTML = '<option value="">All accessible in tenant</option>';
-      const tenantId = tenantSelect.value;
-      if (!tenantId) return;
-      const data = await getJSON(`/api/subscriptions?tenantId=${encodeURIComponent(tenantId)}`);
-      for (const s of data.subscriptions) {
-        const opt = document.createElement('option');
-        opt.value = s.subscriptionId;
-        opt.textContent = `${s.displayName} (${s.subscriptionId})`;
-        subscriptionSelect.appendChild(opt);
-      }
-    }
-
-    async function pollJob(jobId) {
-      const poll = async () => {
+      async function refreshAuth() {
         try {
-          const j = await getJSON(`/api/jobs/${jobId}/status`);
-          const files = (j.files || []).map(f => `- ${f}`).join('\n');
-          statusDiv.textContent = `Status: ${j.status}\nStarted: ${j.startedAt}\nEnded: ${j.endedAt || ''}\nOutputs: /outputs/${jobId}/\n${files}\nLog: /api/jobs/${jobId}/log`;
-          if (j.status === 'running') setTimeout(poll, 5000);
-        } catch (e) {
-          statusDiv.textContent = 'Failed to get job status: ' + e.message;
+          if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            userSpan.textContent = 'Signed in as Local Dev User';
+            appDiv.classList.remove('hidden');
+            await loadTenants();
+            return;
+          }
+          const me = await getJSON('/api/me');
+          userSpan.textContent = `Signed in as ${me.name || me.userDetails || me.username || 'unknown'}`;
+          appDiv.classList.remove('hidden');
+          await loadTenants();
+        } catch {
+          userSpan.textContent = '';
+          appDiv.classList.remove('hidden'); // Always show UI for fallback
+          await loadTenants();
         }
+      }
+
+      async function loadTenants() {
+        tenantSelect.innerHTML = '';
+        let tenants = [];
+        try {
+          const data = await getJSON('/api/tenants');
+          tenants = (data && Array.isArray(data.tenants)) ? data.tenants : [];
+        } catch (e) {
+          tenants = [];
+        }
+        if (tenants.length > 0) {
+          for (const t of tenants) {
+            const opt = document.createElement('option');
+            opt.value = t.tenantId;
+            opt.textContent = `${t.displayName || t.tenantId} (${t.tenantId})`;
+            tenantSelect.appendChild(opt);
+          }
+          tenantSelect.style.display = '';
+          document.getElementById('manual-tenant-entry').style.display = 'none';
+        } else {
+          // No tenants available or fetch failed
+          document.getElementById('manual-tenant-entry').style.display = '';
+          tenantSelect.style.display = 'none';
+        }
+        await loadSubscriptions();
+      }
+
+      async function loadSubscriptions() {
+        subscriptionSelect.innerHTML = '<option value="">All accessible in tenant</option>';
+        const tenantId = tenantSelect.value;
+        if (!tenantId) return;
+        try {
+          const data = await getJSON(`/api/subscriptions?tenantId=${encodeURIComponent(tenantId)}`);
+          for (const s of data.subscriptions) {
+            const opt = document.createElement('option');
+            opt.value = s.subscriptionId;
+            opt.textContent = `${s.displayName} (${s.subscriptionId})`;
+            subscriptionSelect.appendChild(opt);
+          }
+        } catch {}
+      }
+
+      async function pollJob(jobId) {
+        const poll = async () => {
+          try {
+            const j = await getJSON(`/api/jobs/${jobId}/status`);
+            const files = (j.files || []).map(f => `- ${f}`).join('\n');
+            statusDiv.textContent = `Status: ${j.status}\nStarted: ${j.startedAt}\nEnded: ${j.endedAt || ''}\nOutputs: /outputs/${jobId}/\n${files}\nLog: /api/jobs/${jobId}/log`;
+            if (j.status === 'running') setTimeout(poll, 5000);
+          } catch (e) {
+            statusDiv.textContent = 'Failed to get job status: ' + e.message;
+          }
+        };
+        poll();
+      }
+
+      if (loginBtn) loginBtn.onclick = () => { window.location = '/.auth/login/aad'; };
+      logoutBtn.onclick = async () => { await postJSON('/auth/logout', {}); await refreshAuth(); };
+      tenantSelect.onchange = loadSubscriptions;
+
+      runBtn.onclick = async () => {
+        statusDiv.textContent = 'Starting...';
+        let tenantId = tenantSelect.value;
+        // If manual tenant entry is visible and filled, use it
+        const manualTenantEntry = document.getElementById('manual-tenant-entry');
+        const manualTenantId = document.getElementById('manual-tenant-id').value.trim();
+        if (manualTenantEntry && manualTenantEntry.style.display !== 'none' && manualTenantId) {
+          tenantId = manualTenantId;
+        }
+        // Subscription logic: use manual if present, else dropdown
+        const manualSubscriptionId = document.getElementById('manual-subscription-id').value.trim();
+        let subscriptionId = manualSubscriptionId || subscriptionSelect.value || undefined;
+        const res = await postJSON('/api/run', { tenantId, subscriptionId });
+        statusDiv.textContent = `Job started: ${res.jobId}\nLog: ${res.logUrl}`;
+        await pollJob(res.jobId);
       };
-      poll();
-    }
 
-  loginBtn.onclick = () => { window.location = '/.auth/login/aad'; };
-    logoutBtn.onclick = async () => { await postJSON('/auth/logout', {}); await refreshAuth(); };
-    tenantSelect.onchange = loadSubscriptions;
+      document.getElementById('manual-subscription-btn')?.addEventListener('click', function() {
+        const manualSubscriptionId = document.getElementById('manual-subscription-id').value.trim();
+        if (manualSubscriptionId) {
+          subscriptionSelect.value = '';
+        }
+      });
 
-    runBtn.onclick = async () => {
-      statusDiv.textContent = 'Starting...';
-      const tenantId = tenantSelect.value;
-      const subscriptionId = subscriptionSelect.value || undefined;
-      const res = await postJSON('/api/run', { tenantId, subscriptionId });
-      statusDiv.textContent = `Job started: ${res.jobId}\nLog: ${res.logUrl}`;
-      await pollJob(res.jobId);
-    };
-
-    refreshAuth();
+      document.getElementById('manual-tenant-btn')?.addEventListener('click', function() {
+        const manualTenantId = document.getElementById('manual-tenant-id').value.trim();
+        if (manualTenantId) {
+          tenantSelect.value = manualTenantId;
+          loadSubscriptions();
+        }
+      });
+      // Always show UI as fallback
+      appDiv.classList.remove('hidden');
+      refreshAuth();
+    });
   </script>
 </body>
 </html>

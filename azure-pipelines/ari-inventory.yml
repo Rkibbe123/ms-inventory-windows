@@ -12,11 +12,11 @@ parameters:
 - name: subscriptionId
   displayName: 'Specific subscription ID (optional)'
   type: string
-  default: ''
+  default: 'd5736eb1-f851-4ec3-a2c5-ac8d84d029e2'
 - name: resourceGroup
   displayName: 'Specific resource group (optional)'
   type: string
-  default: ''
+  default: 'rg-rkibbe-2470'
 - name: reportName
   displayName: 'Custom report name (optional)'
   type: string

@@ -22,10 +22,17 @@ function Connect-ARILoginSession {
     $DebugPreference = 'silentlycontinue'
     $ErrorActionPreference = 'Continue'
 
+    # Log parameters for debugging
+    try {
+        $logMsg = "[Connect-ARILoginSession] Params: AzureEnvironment=$AzureEnvironment, TenantID=$TenantID, SubscriptionID=$SubscriptionID, DeviceLogin=$DeviceLogin, AppId=$AppId, Secret=***, CertificatePath=$CertificatePath, Debug=$Debug"
+        Out-File -FilePath "C:\temp\outputs\test-Invoke-ARI.log" -InputObject $logMsg -Append
+    } catch {}
+
     Write-Debug ((get-date -Format 'yyyy-MM-dd_HH_mm_ss')+' - '+'Starting Connect-LoginSession function')
     Write-Host $AzureEnvironment -BackgroundColor Green
     $Context = Get-AzContext -ErrorAction SilentlyContinue
-    if (!$TenantID) {
+    # Robust check: treat null, empty, or whitespace as not provided
+    if ([string]::IsNullOrWhiteSpace($TenantID)) {
         Write-Debug ((get-date -Format 'yyyy-MM-dd_HH_mm_ss')+' - '+'Tenant ID not specified')
         write-host "Tenant ID not specified. Use -TenantID parameter if you want to specify directly. "
         write-host "Authenticating Azure"
@@ -109,14 +116,14 @@ function Connect-ARILoginSession {
             {
                 Write-Debug ((get-date -Format 'yyyy-MM-dd_HH_mm_ss')+' - '+'Logging with AppID and CertificatePath')
                 $SecurePassword = ConvertTo-SecureString -String $Secret -AsPlainText -Force
-                Connect-AzAccount -ServicePrincipal -TenantId $TenantId -ApplicationId $AppId -CertificatePath $CertificatePath -CertificatePassword $SecurePassword | Out-Null
+                Connect-AzAccount -ServicePrincipal -TenantId $TenantID -ApplicationId $AppId -CertificatePath $CertificatePath -CertificatePassword $SecurePassword | Out-Null
             }            
         elseif($AppId -and $Secret -and $TenantID)
             {
                 Write-Debug ((get-date -Format 'yyyy-MM-dd_HH_mm_ss')+' - '+'Logging with AppID and Secret')
                 $SecurePassword = ConvertTo-SecureString -String $Secret -AsPlainText -Force
                 $Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $AppId, $SecurePassword
-                Connect-AzAccount -ServicePrincipal -TenantId $TenantId -Credential $Credential | Out-Null
+                Connect-AzAccount -ServicePrincipal -TenantId $TenantID -Credential $Credential | Out-Null
             }
         else
             {

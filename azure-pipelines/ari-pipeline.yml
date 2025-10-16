@@ -32,6 +32,7 @@ steps:
       server.js
       package.json
       package-lock.json
+      log.ps1
       web.config
       public/**
       frontend/**

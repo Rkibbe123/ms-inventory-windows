@@ -1,3 +1,23 @@
+require('dotenv').config();
+const express = require('express');
+const cookieParser = require('cookie-parser');
+const bodyParser = require('body-parser');
+const path = require('path');
+const fs = require('fs');
+
+// Log process exit and uncaught exceptions for debugging
+const logPath = path.join(__dirname, 'log.txt');
+process.on('exit', (code) => {
+  const msg = `[${new Date().toISOString()}] Process exit with code ${code}`;
+  try { fs.appendFileSync(logPath, msg + '\n'); } catch (e) {}
+  console.log(msg);
+});
+process.on('uncaughtException', (err) => {
+  const msg = `[${new Date().toISOString()}] Uncaught exception: ${err.stack || err}`;
+  try { fs.appendFileSync(logPath, msg + '\n'); } catch (e) {}
+  console.error(msg);
+  process.exit(1);
+});
 /*
 Environment configuration (set in App Service Configuration):
 - AZURE_CLIENT_ID: App registration (Web) application (client) ID
@@ -12,11 +32,6 @@ Notes:
 - Outputs are also written to the App Service mounted Azure Files share under `outputs/` for durability.
 - The app uses delegated user tokens to call ARM and passes a tenant-scoped ARM token to PowerShell.
 */
-const express = require('express');
-const cookieParser = require('cookie-parser');
-const bodyParser = require('body-parser');
-const path = require('path');
-const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const msal = require('@azure/msal-node');
@@ -67,6 +82,17 @@ function buildRedirectUri(req) {
 }
 
 function requireAuth(req, res, next) {
+  if (process.env.NODE_ENV !== 'production') {
+    // Local/dev: inject fake user
+    req.user = req.user || {
+      claims: [
+        { typ: 'name', val: 'Local Dev User' },
+        { typ: 'preferred_username', val: 'local@localhost' },
+        { typ: 'email', val: 'local@localhost' }
+      ]
+    };
+    return next();
+  }
   if (req.user) return next();
   // Not authenticated
   return res.redirect('/.auth/login/aad');
@@ -236,11 +262,152 @@ app.get('/api/subscriptions', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/run - start backend job (stub, logs call)
+// POST /api/run - start backend job (launch PowerShell, create job dir, log output)
 app.post('/api/run', requireAuth, async (req, res) => {
   logIISNode('POST /api/run called');
-  // This is a stub; implement PowerShell job launch as needed
-  res.json({ jobId: 'stub', status: 'running', outputsUrl: '/outputs/stub/', logUrl: '/api/jobs/stub/log' });
+  const { tenantId, subscriptionId } = req.body;
+  // Log received arguments for debugging
+  const argsLogPath = path.join(OUTPUTS_DIR, 'run-args.log');
+  fs.appendFileSync(argsLogPath, `[${new Date().toISOString()}] Received tenantId: ${tenantId}, subscriptionId: ${subscriptionId}\n`);
+
+
+  // Build PowerShell command and args for Invoke-ARI (declare scriptPath only once)
+  const scriptPath = path.join(__dirname, 'Modules', 'Public', 'PublicFunctions', 'Invoke-ARI.ps1');
+  // jobDir is not available until after validation and creation
+
+  // Validate arguments
+  if (!tenantId || typeof tenantId !== 'string' || !tenantId.trim()) {
+    logIISNode('ERROR: Missing or empty tenantId in /api/run');
+    return res.status(400).json({ error: 'Missing or empty tenantId' });
+  }
+  if (!subscriptionId || typeof subscriptionId !== 'string' || !subscriptionId.trim()) {
+    logIISNode('ERROR: Missing or empty subscriptionId in /api/run');
+    return res.status(400).json({ error: 'Missing or empty subscriptionId' });
+  }
+  const jobId = uuidv4();
+  const jobDir = path.join(OUTPUTS_DIR, jobId);
+  try {
+    fs.mkdirSync(jobDir, { recursive: true });
+  } catch (err) {
+    const logPath = path.join(jobDir, 'job.log');
+    fs.appendFileSync(logPath, `[ERROR] Failed to create output directory: ${jobDir}\n${err.stack}\n`);
+    return res.status(500).json({ error: `Failed to create output directory: ${jobDir}` });
+  }
+  // Now that jobDir is available, build args
+  const args = [
+    '-File', scriptPath,
+    '-TenantID', tenantId,
+    '-AppId', process.env.AZURE_CLIENT_ID,
+    '-Secret', process.env.AZURE_CLIENT_SECRET,
+    '-SubscriptionID', subscriptionId,
+    '-ReportDir', jobDir,
+    '-ReportName', `AzureResourceInventory_Report_${new Date().toISOString().replace(/[:.]/g,'_')}.xlsx`,
+    '-Debug'
+  ];
+  // Debug: log the PowerShell args array and values (after args is defined)
+  const debugArgsLog = [
+    `[DEBUG] About to spawn PowerShell with the following arguments:`,
+    `args: ${JSON.stringify(args)}`,
+    `tenantId: ${tenantId}`,
+    `subscriptionId: ${subscriptionId}`
+  ].join('\n');
+  fs.appendFileSync(argsLogPath, debugArgsLog + '\n');
+  // Validate arguments
+  if (!tenantId || typeof tenantId !== 'string' || !tenantId.trim()) {
+    logIISNode('ERROR: Missing or empty tenantId in /api/run');
+    return res.status(400).json({ error: 'Missing or empty tenantId' });
+  }
+  if (!subscriptionId || typeof subscriptionId !== 'string' || !subscriptionId.trim()) {
+    logIISNode('ERROR: Missing or empty subscriptionId in /api/run');
+    return res.status(400).json({ error: 'Missing or empty subscriptionId' });
+  }
+  const jobId = uuidv4();
+  const jobDir = path.join(OUTPUTS_DIR, jobId);
+  try {
+    fs.mkdirSync(jobDir, { recursive: true });
+  } catch (err) {
+    const logPath = path.join(jobDir, 'job.log');
+    fs.appendFileSync(logPath, `[ERROR] Failed to create output directory: ${jobDir}\n${err.stack}\n`);
+    return res.status(500).json({ error: `Failed to create output directory: ${jobDir}` });
+  }
+  const logPath = path.join(jobDir, 'job.log');
+  const psExe = selectPowerShellExecutable();
+  // Always use service principal credentials from .env
+  const env = Object.assign({}, process.env, {
+    AZURE_CLIENT_ID: process.env.AZURE_CLIENT_ID,
+    AZURE_CLIENT_SECRET: process.env.AZURE_CLIENT_SECRET,
+    AZURE_TENANT_ID: tenantId,
+    AZURE_SUBSCRIPTION_ID: subscriptionId,
+    OUTPUTS_DIR: jobDir
+  });
+  // Use previously defined scriptPath and args
+  // Write job start and PowerShell command to job.log (after args is defined)
+  fs.appendFileSync(logPath, `[INFO] Job started for jobId ${jobId} at ${new Date().toISOString()}\n`);
+  fs.appendFileSync(logPath, `[INFO] PowerShell command: ${psExe} ${args.join(' ')}\n`);
+  // Log environment variables (redact secrets)
+  const redactedEnv = Object.assign({}, env, {
+    AZURE_CLIENT_SECRET: env.AZURE_CLIENT_SECRET ? '***REDACTED***' : undefined
+  });
+  fs.appendFileSync(logPath, `[INFO] PowerShell ENV: ${JSON.stringify(redactedEnv, null, 2)}\n`);
+  // Log before launching PowerShell
+  fs.appendFileSync(logPath, `[INFO] Launching PowerShell process...\n`);
+  let child;
+  try {
+    child = require('child_process').spawn(psExe, args, {
+      env,
+      cwd: __dirname,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+  } catch (spawnErr) {
+    fs.appendFileSync(logPath, `[ERROR] Failed to spawn PowerShell process: ${spawnErr.stack || spawnErr}\n`);
+    return res.status(500).json({ error: 'Failed to launch PowerShell process', details: spawnErr.message });
+  }
+  jobs.set(jobId, { status: 'running', startedAt: new Date(), endedAt: null, logPath, child });
+  // Stream output to log file
+  const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+  child.stdout.pipe(logStream);
+  child.stderr.pipe(logStream);
+  // Log errors from spawn (e.g., ENOENT, permission)
+  child.on('error', (err) => {
+    fs.appendFileSync(logPath, `[ERROR] PowerShell process error: ${err.stack || err}\n`);
+  });
+  child.on('exit', (code) => {
+    const job = jobs.get(jobId);
+    if (job) {
+      job.status = code === 0 ? 'completed' : 'failed';
+      job.endedAt = new Date();
+    }
+    logStream.write(`\n[INFO] PowerShell process exited with code ${code}\n`);
+    // Log the expected Excel file path for debugging
+    const expectedExcelFile = path.join(jobDir, `AzureResourceInventory_Report_${new Date().toISOString().replace(/[:.]/g,'_')}.xlsx`);
+    logStream.write(`\n[INFO] Expected Excel file path: ${expectedExcelFile}\n`);
+    logStream.end();
+  });
+  fs.appendFileSync(logPath, `[INFO] PowerShell process launched. Waiting for output...\n`);
+  res.json({ jobId, status: 'running', outputsUrl: `/outputs/${jobId}/`, logUrl: `/api/jobs/${jobId}/log` });
+});
+
+// GET /api/jobs/:jobId/status - return job status
+app.get('/api/jobs/:jobId/status', requireAuth, (req, res) => {
+  const { jobId } = req.params;
+  const job = jobs.get(jobId);
+  if (!job) return res.status(404).json({ error: 'job_not_found' });
+  res.json({
+    jobId,
+    status: job.status,
+    startedAt: job.startedAt,
+    endedAt: job.endedAt,
+    logPath: job.logPath,
+    files: fs.existsSync(path.join(OUTPUTS_DIR, jobId)) ? fs.readdirSync(path.join(OUTPUTS_DIR, jobId)) : []
+  });
+});
+
+// GET /api/jobs/:jobId/log - return job log
+app.get('/api/jobs/:jobId/log', requireAuth, (req, res) => {
+  const { jobId } = req.params;
+  const job = jobs.get(jobId);
+  if (!job || !fs.existsSync(job.logPath)) return res.status(404).send('Log not found');
+  res.sendFile(job.logPath);
 });
 
 app.get('/', (req, res) => {

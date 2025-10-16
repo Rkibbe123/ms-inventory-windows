@@ -1,3 +1,38 @@
+Out-File -FilePath "C:\temp\outputs\test-Invoke-ARI.log" -InputObject "Script reached top at $(Get-Date -Format o)" -Append
+# Dynamically import all ARI function dependencies at the top
+$ariFunctions = @(
+    @{ Name = 'Test-ARIPS'; Path = '../../Private/0.MainFunctions/Test-ARIPS.ps1' },
+    @{ Name = 'Connect-ARILoginSession'; Path = '../../Private/0.MainFunctions/Connect-ARILoginSession.ps1' },
+    @{ Name = 'Get-ARISubscriptions'; Path = '../../Private/1.ExtractionFunctions/Get-ARISubscriptions.ps1' },
+    @{ Name = 'Set-ARIReportPath'; Path = '../../Private/0.MainFunctions/Set-ARIReportPath.ps1' },
+    @{ Name = 'Set-ARIFolder'; Path = '../../Private/0.MainFunctions/Set-ARIFolder.ps1' },
+    @{ Name = 'Clear-ARICacheFolder'; Path = '../../Private/0.MainFunctions/Clear-ARICacheFolder.ps1' },
+    @{ Name = 'Start-ARIExtractionOrchestration'; Path = '../../Private/0.MainFunctions/Start-ARIExtractionOrchestration.ps1' },
+    @{ Name = 'Start-ARIGraphExtraction'; Path = '../../Private/1.ExtractionFunctions/Start-ARIGraphExtraction.ps1' },
+    @{ Name = 'Start-ARIExtraJobs'; Path = '../../Private/2.ProcessingFunctions/Start-ARIExtraJobs.ps1' },
+    @{ Name = 'Start-ARIProcessOrchestration'; Path = '../../Private/0.MainFunctions/Start-ARIProcessOrchestration.ps1' },
+    @{ Name = 'Start-ARIReporOrchestration'; Path = '../../Private/0.MainFunctions/Start-ARIReporOrchestration.ps1' },
+    @{ Name = 'Start-ARIExcelCustomization'; Path = '../../Private/3.ReportingFunctions/StyleFunctions/Start-ARIExcelCustomization.ps1' },
+    @{ Name = 'Clear-ARIMemory'; Path = '../../Private/0.MainFunctions/Clear-ARIMemory.ps1' },
+    @{ Name = 'Remove-ARIExcelProcess'; Path = '../../Private/0.MainFunctions/Remove-ARIExcelProcess.ps1' },
+    @{ Name = 'Out-ARIReportResults'; Path = '../../Private/3.ReportingFunctions/StyleFunctions/Out-ARIReportResults.ps1' }
+)
+
+foreach ($func in $ariFunctions) {
+    try {
+        if (-not (Get-Command $func.Name -ErrorAction SilentlyContinue)) {
+            $importPath = Join-Path $PSScriptRoot $func.Path
+            if (Test-Path $importPath) {
+                . $importPath
+                Out-File -FilePath "C:\temp\outputs\test-Invoke-ARI.log" -InputObject "Imported $($func.Name).ps1 from $importPath at $(Get-Date -Format o)" -Append
+            } else {
+                Out-File -FilePath "C:\temp\outputs\test-Invoke-ARI.log" -InputObject "$($func.Name).ps1 not found at $importPath at $(Get-Date -Format o)" -Append
+            }
+        }
+    } catch {
+        Out-File -FilePath "C:\temp\outputs\test-Invoke-ARI.log" -InputObject "Error importing $($func.Name).ps1: $($_.Exception.Message) at $(Get-Date -Format o)" -Append
+    }
+}
 <#
 .SYNOPSIS
     This script creates Excel file to Analyze Azure Resources inside a Tenant
@@ -164,19 +199,37 @@ Function Invoke-ARI {
         [switch]$Help,
         [switch]$DeviceLogin,
         [switch]$DiagramFullEnvironment
-        )
+    )
 
-    Write-Debug ((get-date -Format 'yyyy-MM-dd_HH_mm_ss')+' - '+'Debugging Mode: On. ErrorActionPreference was set to "Continue", every error will be presented.')
+    # Verbose logging and error capture
+    if ($ReportDir) {
+        "Function body entered at $(Get-Date -Format o)" | Out-File -FilePath (Join-Path $ReportDir "Invoke-ARI.log") -Append
+    }
+    $LogFile = $null
+    if ($ReportDir) {
+        $LogFile = Join-Path $ReportDir "Invoke-ARI.log"
+        "[INFO] Script started at $(Get-Date -Format o)" | Out-File -FilePath $LogFile -Append
+        "[INFO] Parameters: TenantID=$TenantID, SubscriptionID=$SubscriptionID, AppId=$AppId, ReportDir=$ReportDir, ReportName=$ReportName" | Out-File -FilePath $LogFile -Append
+    }
+    $ErrorActionPreference = 'Stop'
+    trap {
+        $errMsg = "[ERROR] $($_.Exception.Message)"
+        if ($LogFile) { $errMsg | Out-File -FilePath $LogFile -Append }
+        Write-Error $errMsg
+        continue
+    }
+    Write-Debug ((get-date -Format 'yyyy-MM-dd_HH_mm_ss')+' - '+'Debugging Mode: On. ErrorActionPreference was set to "Stop", every error will be presented.')
 
-    if ($DebugPreference -eq 'SilentlyContinue')
-        {
-            Write-Host 'Debugging Mode: ' -nonewline
-            Write-Host 'Off' -ForegroundColor Yellow
-            Write-Host 'Use the parameter ' -nonewline
-            Write-Host '-Debug' -nonewline -ForegroundColor Yellow
-            Write-Host ' to see debugging information during the inventory execution.'
-            Write-Host 'For large environments, it is recommended to use the -Debug parameter to monitor the progress.' -ForegroundColor Yellow
-        }
+    if ($DebugPreference -eq 'SilentlyContinue') {
+        Write-Host 'Debugging Mode: ' -nonewline
+        Write-Host 'Off' -ForegroundColor Yellow
+        Write-Host 'Use the parameter ' -nonewline
+        Write-Host '-Debug' -nonewline -ForegroundColor Yellow
+        Write-Host ' to see debugging information during the inventory execution.'
+        Write-Host 'For large environments, it is recommended to use the -Debug parameter to monitor the progress.' -ForegroundColor Yellow
+        if ($LogFile) { "[INFO] Debugging Mode: Off" | Out-File -FilePath $LogFile -Append }
+    }
+    if ($LogFile) { "[INFO] PowerShell version: $($PSVersionTable.PSVersion)" | Out-File -FilePath $LogFile -Append }
 
     if ($IncludeTags.IsPresent) { $InTag = $true } else { $InTag = $false }
 
@@ -255,31 +308,31 @@ Function Invoke-ARI {
     $TotalRunTime = [System.Diagnostics.Stopwatch]::StartNew()
 
     if ($Help.IsPresent) {
+        if ($LogFile) { "[INFO] Help requested, exiting." | Out-File -FilePath $LogFile -Append }
         Get-ARIUsageMode
         Exit
     }
 
-    $PlatOS = Test-ARIPS
+    try {
+        $PlatOS = Test-ARIPS
 
-    if ($PlatOS -ne 'Azure CloudShell' -and !$Automation.IsPresent)
-        {
+        if ($PlatOS -ne 'Azure CloudShell' -and !$Automation.IsPresent) {
             $TenantID = Connect-ARILoginSession -AzureEnvironment $AzureEnvironment -TenantID $TenantID -SubscriptionID $SubscriptionID -DeviceLogin $DeviceLogin -AppId $AppId -Secret $Secret -CertificatePath $CertificatePath
-
-            if (!$NoAutoUpdate.IsPresent)
-                {
-                    Write-Host ('Checking for Powershell Module Updates..')
-                    Update-Module -Name AzureResourceInventory -AcceptLicense
-                }
-        }
-    elseif ($Automation.IsPresent)
-        {
+            if ($LogFile) { "[INFO] Connected to Azure tenant: $TenantID" | Out-File -FilePath $LogFile -Append }
+            if (!$NoAutoUpdate.IsPresent) {
+                Write-Host ('Checking for Powershell Module Updates..')
+                if ($LogFile) { "[INFO] Checking for Powershell Module Updates.." | Out-File -FilePath $LogFile -Append }
+                Update-Module -Name AzureResourceInventory -AcceptLicense
+            }
+        } elseif ($Automation.IsPresent) {
             try {
                 $AzureConnection = (Connect-AzAccount -Identity).context
-
                 Set-AzContext -SubscriptionName $AzureConnection.Subscription -DefaultProfile $AzureConnection
-            }
-            catch {
-                Write-Output "Failed to set Automation Account requirements. Aborting." 
+                if ($LogFile) { "[INFO] Connected to Automation Account." | Out-File -FilePath $LogFile -Append }
+            } catch {
+                $errMsg = "Failed to set Automation Account requirements. Aborting. $_"
+                if ($LogFile) { "[ERROR] $errMsg" | Out-File -FilePath $LogFile -Append }
+                Write-Output $errMsg
                 exit
             }
         }
@@ -295,30 +348,39 @@ Function Invoke-ARI {
             $StorageContext = New-AzStorageContext -StorageAccountName $StorageAccount -UseConnectedAccount
         }
 
-    $Subscriptions = Get-ARISubscriptions -TenantID $TenantID -SubscriptionID $SubscriptionID -PlatOS $PlatOS
+        $Subscriptions = Get-ARISubscriptions -TenantID $TenantID -SubscriptionID $SubscriptionID -PlatOS $PlatOS
+        if ($LogFile) { "[INFO] Subscriptions: $($Subscriptions | Out-String)" | Out-File -FilePath $LogFile -Append }
 
-    $ReportingPath = Set-ARIReportPath -ReportDir $ReportDir
+        $ReportingPath = Set-ARIReportPath -ReportDir $ReportDir
 
-    $DefaultPath = $ReportingPath.DefaultPath
-    $DiagramCache = $ReportingPath.DiagramCache
-    $ReportCache = $ReportingPath.ReportCache
+        $DefaultPath = $ReportingPath.DefaultPath
+        $DiagramCache = $ReportingPath.DiagramCache
+        $ReportCache = $ReportingPath.ReportCache
 
-    if ($Automation.IsPresent)
-        {
+        if ($Automation.IsPresent) {
             $ReportName = 'ARI_Automation'
         }
 
-    Set-ARIFolder -DefaultPath $DefaultPath -DiagramCache $DiagramCache -ReportCache $ReportCache
-
-    Clear-ARICacheFolder -ReportCache $ReportCache
-
-    Get-Job | Where-Object {$_.name -like 'ResourceJob_*'} | Remove-Job -Force | Out-Null
-
-    $ExtractionRuntime = [System.Diagnostics.Stopwatch]::StartNew()
-
-        $ExtractionData = Start-ARIExtractionOrchestration -ManagementGroup $ManagementGroup -Subscriptions $Subscriptions -SubscriptionID $SubscriptionID -ResourceGroup $ResourceGroup -SecurityCenter $SecurityCenter -SkipAdvisory $SkipAdvisory -SkipPolicy $SkipPolicy -IncludeTags $IncludeTags -TagKey $TagKey -TagValue $TagValue -SkipAPIs $SkipAPIs -SkipVMDetails $SkipVMDetails -IncludeCosts $IncludeCosts -Automation $Automation
-
-    $ExtractionRuntime.Stop()
+        Set-ARIFolder -DefaultPath $DefaultPath -DiagramCache $DiagramCache -ReportCache $ReportCache
+        Clear-ARICacheFolder -ReportCache $ReportCache
+        Get-Job | Where-Object {$_.name -like 'ResourceJob_*'} | Remove-Job -Force | Out-Null
+        $ExtractionRuntime = [System.Diagnostics.Stopwatch]::StartNew()
+        if ($LogFile) { "[INFO] Starting Extraction Orchestration..." | Out-File -FilePath $LogFile -Append }
+        $ExtractionData = $null
+        try {
+            $ExtractionData = Start-ARIExtractionOrchestration -ManagementGroup $ManagementGroup -Subscriptions $Subscriptions -SubscriptionID $SubscriptionID -ResourceGroup $ResourceGroup -SecurityCenter $SecurityCenter -SkipAdvisory $SkipAdvisory -SkipPolicy $SkipPolicy -IncludeTags $IncludeTags -TagKey $TagKey -TagValue $TagValue -SkipAPIs $SkipAPIs -SkipVMDetails $SkipVMDetails -IncludeCosts $IncludeCosts -Automation $Automation
+            if ($LogFile) { "[INFO] ExtractionData: $($ExtractionData | Out-String)" | Out-File -FilePath $LogFile -Append }
+        } catch {
+            $errMsg = "[ERROR] Extraction orchestration failed: $_"
+            if ($LogFile) { $errMsg | Out-File -FilePath $LogFile -Append }
+            Write-Error $errMsg
+        }
+        $ExtractionRuntime.Stop()
+    } catch {
+        $errMsg = "[ERROR] Fatal error in Invoke-ARI: $_"
+        if ($LogFile) { $errMsg | Out-File -FilePath $LogFile -Append }
+        Write-Error $errMsg
+    }
 
     $Resources = $ExtractionData.Resources
     $Quotas = $ExtractionData.Quotas
@@ -461,4 +523,14 @@ Write-Progress -activity 'Azure Inventory' -Status "100% Complete." -Completed
 
 Out-ARIReportResults -Measure $Measure -ResourcesCount $ResourcesCount -TotalRes $TotalRes -SkipAdvisory $SkipAdvisory -AdvisoryData $AdvisoryCount -SkipPolicy $SkipPolicy -SkipAPIs $SkipAPIs -PolicyData $PolicyCount -SecurityCenter $SecurityCenter -SecurityCenterData $SecCenterCount -File $File -SkipDiagram $SkipDiagram -DDFile $DDFile
 
+}
+
+# Always call the function at the end of the script
+Out-File -FilePath "C:\temp\outputs\test-Invoke-ARI.log" -InputObject "Script reached end at $(Get-Date -Format o)" -Append
+Out-File -FilePath "C:\temp\outputs\test-Invoke-ARI.log" -InputObject "Calling Invoke-ARI at $(Get-Date -Format o)" -Append
+try {
+    Invoke-ARI @PSBoundParameters
+    Out-File -FilePath "C:\temp\outputs\test-Invoke-ARI.log" -InputObject "Invoke-ARI completed at $(Get-Date -Format o)" -Append
+} catch {
+    Out-File -FilePath "C:\temp\outputs\test-Invoke-ARI.log" -InputObject "Invoke-ARI threw error: $($_.Exception.Message) at $(Get-Date -Format o)" -Append
 }

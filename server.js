@@ -1,44 +1,17 @@
 require('dotenv').config();
 const express = require('express');
+const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
-
-// Log process exit and uncaught exceptions for debugging
-const logPath = path.join(__dirname, 'log.txt');
-process.on('exit', (code) => {
-  const msg = `[${new Date().toISOString()}] Process exit with code ${code}`;
-  try { fs.appendFileSync(logPath, msg + '\n'); } catch (e) {}
-  console.log(msg);
-});
-process.on('uncaughtException', (err) => {
-  const msg = `[${new Date().toISOString()}] Uncaught exception: ${err.stack || err}`;
-  try { fs.appendFileSync(logPath, msg + '\n'); } catch (e) {}
-  console.error(msg);
-  process.exit(1);
-});
-/*
-Environment configuration (set in App Service Configuration):
-- AZURE_CLIENT_ID: App registration (Web) application (client) ID
-- AZURE_CLIENT_SECRET: Client secret for the app registration
-- AZURE_AUTHORITY: Optional. e.g. https://login.microsoftonline.com/organizations or specific tenant ID
-- REDIRECT_URI: Optional. e.g. https://<yourapp>.azurewebsites.net/auth/redirect
-- SESSION_SECRET: Session crypto secret
-- AZURE_STORAGE_CONNECTION_STRING: Optional. Blob storage connection string for uploads
-- OUTPUTS_CONTAINER: Optional. Blob container name (default 'ari-outputs')
-
-Notes:
-- Outputs are also written to the App Service mounted Azure Files share under `outputs/` for durability.
-- The app uses delegated user tokens to call ARM and passes a tenant-scoped ARM token to PowerShell.
-*/
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
 const msal = require('@azure/msal-node');
 const { BlobServiceClient } = require('@azure/storage-blob');
 
 const PORT = process.env.PORT || 3000;
-const NODE_ENV = process.env.NODE_ENV || 'production';
+const NODE_ENV = process.env.NODE_ENV || 'development';
 const OUTPUTS_DIR = process.env.OUTPUTS_DIR ? path.resolve(process.env.OUTPUTS_DIR) : path.join(__dirname, 'outputs');
 const AZURE_ENVIRONMENT = process.env.AZURE_ENVIRONMENT || 'AzureCloud';
 
@@ -46,13 +19,7 @@ if (!fs.existsSync(OUTPUTS_DIR)) {
   fs.mkdirSync(OUTPUTS_DIR, { recursive: true });
 }
 
-// Basic env validation
-['AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET'].forEach((name) => {
-  if (!process.env[name]) {
-    console.warn(`[warning] Missing ${name}; configure App Service settings before deploying`);
-  }
-});
-
+// MSAL Configuration for OAuth
 let cca = null;
 function getCca() {
   if (cca) return cca;
@@ -76,28 +43,39 @@ function getCca() {
 function buildRedirectUri(req) {
   const configured = process.env.REDIRECT_URI;
   if (configured) return configured;
-  const proto = (req.headers['x-forwarded-proto'] || 'https');
-  const host = (req.headers['x-forwarded-host'] || req.headers.host);
+  const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
+  const host = req.get('x-forwarded-host') || req.get('host');
   return `${proto}://${host}/auth/redirect`;
 }
 
-function requireAuth(req, res, next) {
-  if (process.env.NODE_ENV !== 'production') {
-    // Local/dev: inject fake user
-    req.user = req.user || {
-      claims: [
-        { typ: 'name', val: 'Local Dev User' },
-        { typ: 'preferred_username', val: 'local@localhost' },
-        { typ: 'email', val: 'local@localhost' }
-      ]
-    };
-    return next();
-  }
-  if (req.user) return next();
-  // Not authenticated
-  return res.redirect('/.auth/login/aad');
+// Get account from session
+async function getAccount(req) {
+  if (!req.session || !req.session.homeAccountId) return null;
+  return await getCca().getTokenCache().getAccountByHomeId(req.session.homeAccountId);
 }
 
+// Get ARM token for user
+async function acquireArmTokenForTenant(req, tenantId) {
+  const account = await getAccount(req);
+  if (!account) throw new Error('No account in session');
+  const authority = `https://login.microsoftonline.com/${tenantId}`;
+  const scopes = ['https://management.azure.com/.default', 'offline_access'];
+  try {
+    const result = await getCca().acquireTokenSilent({ account, authority, scopes });
+    return result.accessToken;
+  } catch (err) {
+    console.error('acquireTokenSilent failed:', err.message);
+    throw err;
+  }
+}
+
+// Auth middleware
+function requireAuth(req, res, next) {
+  if (!req.session || !req.session.homeAccountId) {
+    return res.status(401).json({ error: 'not_authenticated' });
+  }
+  next();
+}
 
 function selectPowerShellExecutable() {
   const candidates = [
@@ -111,7 +89,6 @@ function selectPowerShellExecutable() {
   }
   return process.platform === 'win32' ? 'powershell.exe' : 'pwsh';
 }
-
 
 const jobs = new Map();
 
@@ -135,281 +112,188 @@ async function uploadOutputsToBlob(jobId) {
   return { uploaded: true, urls: uploads };
 }
 
-
-// Startup log to log.txt in app root
-try {
-  const logPath = path.join(__dirname, 'log.txt');
-  fs.appendFileSync(logPath, `[${new Date().toISOString()}] App startup\n`);
-} catch (e) {
-  // ignore
+function guessContentType(name) {
+  if (name.endsWith('.xlsx')) return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (name.endsWith('.xml')) return 'application/xml';
+  if (name.endsWith('.json')) return 'application/json';
+  if (name.endsWith('.log') || name.endsWith('.txt')) return 'text/plain';
+  return 'application/octet-stream';
 }
 
-// Global uncaught exception handler
-process.on('uncaughtException', (err) => {
-  try {
-    const logPath = path.join(__dirname, 'log.txt');
-    fs.appendFileSync(logPath, `[${new Date().toISOString()}] Uncaught Exception: ${err.stack || err}\n`);
-  } catch (e) {}
-  process.exit(1);
-});
-
+// Express app setup
 const app = express();
-
-// Global error logging middleware (logs all errors to console, log.txt, and returns 500)
-app.use((err, req, res, next) => {
-  const logPath = path.join(__dirname, 'log.txt');
-  const msg = `[${new Date().toISOString()}] Global error handler: ${err.stack || err}`;
-  try { fs.appendFileSync(logPath, msg + '\n'); } catch (e) {}
-  console.error(msg);
-  res.status(500).json({ error: 'Internal server error', details: err.message });
-});
 app.set('trust proxy', 1);
 app.use(cookieParser());
 app.use(bodyParser.json());
-
-// Easy Auth trust middleware: parse X-MS-CLIENT-PRINCIPAL and set req.user
-app.use((req, res, next) => {
-  const hdr = req.headers['x-ms-client-principal'];
-  if (hdr) {
-    const buf = Buffer.from(hdr, 'base64');
-    try { req.user = JSON.parse(buf.toString('utf8')); } catch {}
-  }
-  next();
-});
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'dev-insecure-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: NODE_ENV === 'production', maxAge: 24 * 60 * 60 * 1000 }
+  })
+);
 
 app.use('/outputs', express.static(OUTPUTS_DIR));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Logout endpoint (no session logic)
+// Routes
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/app', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'app.html'));
+});
+
+// Azure AD OAuth endpoints
+app.get('/auth/login', async (req, res) => {
+  try {
+    const redirectUri = buildRedirectUri(req);
+    const authCodeUrlParameters = {
+      scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'offline_access'],
+      redirectUri,
+      prompt: 'select_account'
+    };
+    const authCodeUrl = await getCca().getAuthCodeUrl(authCodeUrlParameters);
+    res.redirect(authCodeUrl);
+  } catch (err) {
+    res.status(500).send(`Login error: ${err.message}`);
+  }
+});
+
+app.get('/auth/redirect', async (req, res) => {
+  try {
+    const redirectUri = buildRedirectUri(req);
+    const tokenResponse = await getCca().acquireTokenByCode({
+      code: req.query.code,
+      scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'email', 'offline_access'],
+      redirectUri
+    });
+    const account = tokenResponse.account;
+    req.session.homeAccountId = account.homeAccountId;
+    req.session.username = account.username;
+    res.redirect('/app');
+  } catch (err) {
+    res.status(500).send(`Auth redirect error: ${err.message}`);
+  }
+});
+
 app.post('/auth/logout', (req, res) => {
-  res.json({ ok: true });
+  req.session.destroy(() => res.json({ ok: true }));
 });
 
-app.get('/api/me', requireAuth, (req, res) => {
-  if (req.user) {
-    let name = null;
-    if (Array.isArray(req.user.claims)) {
-      const nameClaim = req.user.claims.find(c => c.typ === 'name');
-      const usernameClaim = req.user.claims.find(c => c.typ === 'preferred_username');
-      const emailClaim = req.user.claims.find(c => c.typ === 'email');
-      name = nameClaim?.val || usernameClaim?.val || emailClaim?.val || null;
-    }
-    res.json({ ...req.user, name });
-    return;
-  }
-  res.status(401).json({ error: 'Not authenticated' });
+// API endpoints
+app.get('/api/me', requireAuth, async (req, res) => {
+  res.json({ username: req.session.username, homeAccountId: req.session.homeAccountId });
 });
 
-
-
-
-
-
-
-
-
-// Utility: log to log.txt in app root
-function logIISNode(msg) {
-  try {
-    const logPath = path.join(__dirname, 'log.txt');
-    fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`);
-  } catch (e) {
-    // ignore
-  }
-}
-
-// Service Principal ARM token acquisition
-async function getServicePrincipalToken(tenantId) {
-  const cca = getCca();
-  const authority = `https://login.microsoftonline.com/${tenantId}`;
-  const scopes = ['https://management.azure.com/.default'];
-  const result = await cca.acquireTokenByClientCredential({ authority, scopes });
-  return result.accessToken;
-}
-
-// GET /api/tenants - list tenants visible to the Service Principal
 app.get('/api/tenants', requireAuth, async (req, res) => {
-  logIISNode('GET /api/tenants called');
   try {
-    // Use the "common" endpoint to list tenants
-    const token = await getServicePrincipalToken('common');
+    const account = await getAccount(req);
+    const result = await getCca().acquireTokenSilent({ 
+      account, 
+      authority: 'https://login.microsoftonline.com/common', 
+      scopes: ['https://management.azure.com/.default'] 
+    });
+    const token = result.accessToken;
     const { data } = await axios.get('https://management.azure.com/tenants?api-version=2020-01-01', {
       headers: { Authorization: `Bearer ${token}` }
     });
     const tenants = (data.value || []).map((t) => ({ tenantId: t.tenantId, displayName: t.displayName || t.tenantId }));
     res.json({ tenants });
   } catch (err) {
-    logIISNode('Error in /api/tenants: ' + err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/subscriptions?tenantId=... - list subscriptions for a tenant
 app.get('/api/subscriptions', requireAuth, async (req, res) => {
-  logIISNode('GET /api/subscriptions called');
   try {
     const { tenantId } = req.query;
     if (!tenantId) return res.status(400).json({ error: 'tenantId_required' });
-    const token = await getServicePrincipalToken(tenantId);
+    const token = await acquireArmTokenForTenant(req, tenantId);
     const { data } = await axios.get('https://management.azure.com/subscriptions?api-version=2021-01-01', {
       headers: { Authorization: `Bearer ${token}` }
     });
     const subs = (data.value || []).map((s) => ({ subscriptionId: s.subscriptionId, displayName: s.displayName, state: s.state }));
     res.json({ subscriptions: subs });
   } catch (err) {
-    logIISNode('Error in /api/subscriptions: ' + err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/run - start backend job (launch PowerShell, create job dir, log output)
 app.post('/api/run', requireAuth, async (req, res) => {
-  logIISNode('POST /api/run called');
-  const { tenantId, subscriptionId } = req.body;
-  // Log received arguments for debugging
-  const argsLogPath = path.join(OUTPUTS_DIR, 'run-args.log');
-  fs.appendFileSync(argsLogPath, `[${new Date().toISOString()}] Received tenantId: ${tenantId}, subscriptionId: ${subscriptionId}\n`);
-
-
-  // Build PowerShell command and args for Invoke-ARI (declare scriptPath only once)
-  const scriptPath = path.join(__dirname, 'powershell', 'run-ari.ps1');
-  // jobDir is not available until after validation and creation
-
-  // Validate arguments
-  if (!tenantId || typeof tenantId !== 'string' || !tenantId.trim()) {
-    logIISNode('ERROR: Missing or empty tenantId in /api/run');
-    return res.status(400).json({ error: 'Missing or empty tenantId' });
-  }
-  if (!subscriptionId || typeof subscriptionId !== 'string' || !subscriptionId.trim()) {
-    logIISNode('ERROR: Missing or empty subscriptionId in /api/run');
-    return res.status(400).json({ error: 'Missing or empty subscriptionId' });
-  }
-  const jobId = uuidv4();
-  const jobDir = path.join(OUTPUTS_DIR, jobId);
   try {
+    const { tenantId, subscriptionId } = req.body || {};
+    if (!tenantId) return res.status(400).json({ error: 'tenantId_required' });
+    
+    const jobId = uuidv4();
+    const jobDir = path.join(OUTPUTS_DIR, jobId);
     fs.mkdirSync(jobDir, { recursive: true });
-  } catch (err) {
+
     const logPath = path.join(jobDir, 'job.log');
-    fs.appendFileSync(logPath, `[ERROR] Failed to create output directory: ${jobDir}\n${err.stack}\n`);
-    return res.status(500).json({ error: `Failed to create output directory: ${jobDir}` });
-  }
-  // Now that jobDir is available, build args
-  const args = [
-    '-File', scriptPath,
-    '-TenantId', tenantId,
-    '-SubscriptionId', subscriptionId,
-    '-AppId', process.env.AZURE_CLIENT_ID,
-    '-Secret', process.env.AZURE_CLIENT_SECRET,
-    '-OutputDir', jobDir,
-    '-ReportName', `AzureResourceInventory_Report_${new Date().toISOString().replace(/[:.]/g,'_')}.xlsx`,
-    '-AzureEnvironment', AZURE_ENVIRONMENT
-  ];
-  // Debug: log the PowerShell args array and values (after args is defined)
-  const debugArgsLog = [
-    `[DEBUG] About to spawn PowerShell with the following arguments:`,
-    `args: ${JSON.stringify(args)}`,
-    `tenantId: ${tenantId}`,
-    `subscriptionId: ${subscriptionId}`
-  ].join('\n');
-  fs.appendFileSync(argsLogPath, debugArgsLog + '\n');
-  const logPath = path.join(jobDir, 'job.log');
-  const psExe = selectPowerShellExecutable();
-  // Always use service principal credentials from .env
-  const env = Object.assign({}, process.env, {
-    AZURE_CLIENT_ID: process.env.AZURE_CLIENT_ID,
-    AZURE_CLIENT_SECRET: process.env.AZURE_CLIENT_SECRET,
-    AZURE_TENANT_ID: tenantId,
-    AZURE_SUBSCRIPTION_ID: subscriptionId,
-    OUTPUTS_DIR: jobDir
-  });
-  // Use previously defined scriptPath and args
-  // Write job start and PowerShell command to job.log (after args is defined)
-  fs.appendFileSync(logPath, `[INFO] Job started for jobId ${jobId} at ${new Date().toISOString()}\n`);
-  fs.appendFileSync(logPath, `[INFO] PowerShell command: ${psExe} ${args.join(' ')}\n`);
-  // Log environment variables (redact secrets)
-  const redactedEnv = Object.assign({}, env, {
-    AZURE_CLIENT_SECRET: env.AZURE_CLIENT_SECRET ? '***REDACTED***' : undefined
-  });
-  fs.appendFileSync(logPath, `[INFO] PowerShell ENV: ${JSON.stringify(redactedEnv, null, 2)}\n`);
-  // Log before launching PowerShell
-  fs.appendFileSync(logPath, `[INFO] Launching PowerShell process...\n`);
-  let child;
-  try {
-    child = require('child_process').spawn(psExe, args, {
-      env,
-      cwd: __dirname,
-      stdio: ['ignore', 'pipe', 'pipe']
+    const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+
+    const psExe = selectPowerShellExecutable();
+    const scriptPath = path.join(__dirname, 'powershell', 'run-ari.ps1');
+
+    const args = [
+      '-File', scriptPath,
+      '-TenantId', tenantId,
+      '-SubscriptionId', subscriptionId || '',
+      '-AppId', process.env.AZURE_CLIENT_ID,
+      '-Secret', process.env.AZURE_CLIENT_SECRET,
+      '-OutputDir', jobDir,
+      '-ReportName', `AzureResourceInventory_Report_${new Date().toISOString().replace(/[:.]/g,'_')}.xlsx`,
+      '-AzureEnvironment', AZURE_ENVIRONMENT
+    ];
+
+    const { spawn } = require('child_process');
+    const child = spawn(psExe, args, { windowsHide: true });
+
+    const jobInfo = { id: jobId, status: 'running', startedAt: new Date().toISOString(), logPath, outputDir: jobDir, processId: child.pid };
+    jobs.set(jobId, jobInfo);
+
+    child.stdout.on('data', (d) => logStream.write(d));
+    child.stderr.on('data', (d) => logStream.write(d));
+
+    child.on('exit', async (code) => {
+      logStream.end();
+      jobInfo.endedAt = new Date().toISOString();
+      jobInfo.exitCode = code;
+      jobInfo.status = code === 0 ? 'succeeded' : 'failed';
+      try {
+        const upload = await uploadOutputsToBlob(jobId);
+        jobInfo.upload = upload;
+      } catch (e) {
+        jobInfo.uploadError = e.message;
+      }
+      jobs.set(jobId, jobInfo);
     });
-  } catch (spawnErr) {
-    fs.appendFileSync(logPath, `[ERROR] Failed to spawn PowerShell process: ${spawnErr.stack || spawnErr}\n`);
-    return res.status(500).json({ error: 'Failed to launch PowerShell process', details: spawnErr.message });
+
+    res.json({ jobId, status: 'running', outputsUrl: `/outputs/${jobId}/`, logUrl: `/api/jobs/${jobId}/log` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  jobs.set(jobId, { status: 'running', startedAt: new Date(), endedAt: null, logPath, child });
-  // Stream output to log file
-  const logStream = fs.createWriteStream(logPath, { flags: 'a' });
-  child.stdout.pipe(logStream);
-  child.stderr.pipe(logStream);
-  // Log errors from spawn (e.g., ENOENT, permission)
-  child.on('error', (err) => {
-    fs.appendFileSync(logPath, `[ERROR] PowerShell process error: ${err.stack || err}\n`);
-  });
-  child.on('exit', (code) => {
-    const job = jobs.get(jobId);
-    if (job) {
-      job.status = code === 0 ? 'completed' : 'failed';
-      job.endedAt = new Date();
-    }
-    logStream.write(`\n[INFO] PowerShell process exited with code ${code}\n`);
-    // Log the expected Excel file path for debugging
-    const expectedExcelFile = path.join(jobDir, `AzureResourceInventory_Report_${new Date().toISOString().replace(/[:.]/g,'_')}.xlsx`);
-    logStream.write(`\n[INFO] Expected Excel file path: ${expectedExcelFile}\n`);
-    logStream.end();
-  });
-  fs.appendFileSync(logPath, `[INFO] PowerShell process launched. Waiting for output...\n`);
-  res.json({ jobId, status: 'running', outputsUrl: `/outputs/${jobId}/`, logUrl: `/api/jobs/${jobId}/log` });
 });
 
-// GET /api/jobs/:jobId/status - return job status
-app.get('/api/jobs/:jobId/status', requireAuth, (req, res) => {
-  const { jobId } = req.params;
-  const job = jobs.get(jobId);
+app.get('/api/jobs/:id/status', requireAuth, (req, res) => {
+  const job = jobs.get(req.params.id);
   if (!job) return res.status(404).json({ error: 'job_not_found' });
-  res.json({
-    jobId,
-    status: job.status,
-    startedAt: job.startedAt,
-    endedAt: job.endedAt,
-    logPath: job.logPath,
-    files: fs.existsSync(path.join(OUTPUTS_DIR, jobId)) ? fs.readdirSync(path.join(OUTPUTS_DIR, jobId)) : []
-  });
+  const files = fs.existsSync(job.outputDir)
+    ? fs.readdirSync(job.outputDir).filter((n) => fs.statSync(path.join(job.outputDir, n)).isFile())
+    : [];
+  res.json({ ...job, files });
 });
 
-// GET /api/jobs/:jobId/log - return job log
-app.get('/api/jobs/:jobId/log', requireAuth, (req, res) => {
-  const { jobId } = req.params;
-  const job = jobs.get(jobId);
-  if (!job || !fs.existsSync(job.logPath)) return res.status(404).send('Log not found');
-  res.sendFile(job.logPath);
-});
-
-// Landing page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// App page
-app.get('/app', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'app.html'));
-});
-
-// Simple auth/login - just redirect to app
-app.get('/auth/login', (req, res) => {
-  res.redirect('/app');
+app.get('/api/jobs/:id/log', requireAuth, (req, res) => {
+  const job = jobs.get(req.params.id);
+  if (!job) return res.status(404).send('Not found');
+  if (!fs.existsSync(job.logPath)) return res.status(404).send('Log not found');
+  res.setHeader('Content-Type', 'text/plain');
+  fs.createReadStream(job.logPath).pipe(res);
 });
 
 app.listen(PORT, () => {
-  const logPath = path.join(__dirname, 'log.txt');
-  const msg = `[${new Date().toISOString()}] Server listening on port ${PORT}`;
-  try { fs.appendFileSync(logPath, msg + '\n'); } catch (e) {}
-  console.log(msg);
+  console.log(`Server listening on port ${PORT}`);
 });

@@ -110,10 +110,9 @@ async function uploadOutputsToBlob(jobId) {
 }
 
 
-// Startup log to iisnode log directory
+// Startup log to log.txt in app root
 try {
-  const logDir = process.env.IISNODE_LOG_FILE ? path.dirname(process.env.IISNODE_LOG_FILE) : 'D:/home/LogFiles/iisnode';
-  const logPath = path.join(logDir, 'startup.log');
+  const logPath = path.join(__dirname, 'log.txt');
   fs.appendFileSync(logPath, `[${new Date().toISOString()}] App startup\n`);
 } catch (e) {
   // ignore
@@ -122,8 +121,7 @@ try {
 // Global uncaught exception handler
 process.on('uncaughtException', (err) => {
   try {
-    const logDir = process.env.IISNODE_LOG_FILE ? path.dirname(process.env.IISNODE_LOG_FILE) : 'D:/home/LogFiles/iisnode';
-    const logPath = path.join(logDir, 'uncaught.log');
+    const logPath = path.join(__dirname, 'log.txt');
     fs.appendFileSync(logPath, `[${new Date().toISOString()}] Uncaught Exception: ${err.stack || err}\n`);
   } catch (e) {}
   process.exit(1);
@@ -131,9 +129,12 @@ process.on('uncaughtException', (err) => {
 
 const app = express();
 
-// Global error logging middleware (logs all errors to console and returns 500)
+// Global error logging middleware (logs all errors to console, log.txt, and returns 500)
 app.use((err, req, res, next) => {
-  console.error('Global error handler:', err.stack || err);
+  const logPath = path.join(__dirname, 'log.txt');
+  const msg = `[${new Date().toISOString()}] Global error handler: ${err.stack || err}`;
+  try { fs.appendFileSync(logPath, msg + '\n'); } catch (e) {}
+  console.error(msg);
   res.status(500).json({ error: 'Internal server error', details: err.message });
 });
 app.set('trust proxy', 1);
@@ -181,10 +182,10 @@ app.get('/api/me', requireAuth, (req, res) => {
 
 
 
-// Utility: log to iisnode log file
+// Utility: log to log.txt in app root
 function logIISNode(msg) {
   try {
-    const logPath = process.env.IISNODE_LOG_FILE || path.join(__dirname, 'iisnode.log');
+    const logPath = path.join(__dirname, 'log.txt');
     fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`);
   } catch (e) {
     // ignore
@@ -247,5 +248,8 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+  const logPath = path.join(__dirname, 'log.txt');
+  const msg = `[${new Date().toISOString()}] Server listening on port ${PORT}`;
+  try { fs.appendFileSync(logPath, msg + '\n'); } catch (e) {}
+  console.log(msg);
 });

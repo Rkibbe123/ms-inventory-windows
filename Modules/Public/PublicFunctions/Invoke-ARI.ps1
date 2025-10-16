@@ -209,7 +209,13 @@ Function Invoke-ARI {
     if ($ReportDir) {
         $LogFile = Join-Path $ReportDir "Invoke-ARI.log"
         "[INFO] Script started at $(Get-Date -Format o)" | Out-File -FilePath $LogFile -Append
-        "[INFO] Parameters: TenantID=$TenantID, SubscriptionID=$SubscriptionID, AppId=$AppId, ReportDir=$ReportDir, ReportName=$ReportName" | Out-File -FilePath $LogFile -Append
+        "[INFO] Raw parameters received:" | Out-File -FilePath $LogFile -Append
+        "[INFO]   TenantID = '$TenantID'" | Out-File -FilePath $LogFile -Append
+        "[INFO]   SubscriptionID = '$SubscriptionID'" | Out-File -FilePath $LogFile -Append
+        "[INFO]   AppId = '$AppId'" | Out-File -FilePath $LogFile -Append
+        "[INFO]   Secret length = $($Secret.Length)" | Out-File -FilePath $LogFile -Append
+        "[INFO]   ReportDir = '$ReportDir'" | Out-File -FilePath $LogFile -Append
+        "[INFO]   ReportName = '$ReportName'" | Out-File -FilePath $LogFile -Append
     }
     $ErrorActionPreference = 'Stop'
     trap {

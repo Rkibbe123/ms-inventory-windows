@@ -272,7 +272,7 @@ app.post('/api/run', requireAuth, async (req, res) => {
 
 
   // Build PowerShell command and args for Invoke-ARI (declare scriptPath only once)
-  const scriptPath = path.join(__dirname, 'Modules', 'Public', 'PublicFunctions', 'Invoke-ARI.ps1');
+  const scriptPath = path.join(__dirname, 'powershell', 'run-ari.ps1');
   // jobDir is not available until after validation and creation
 
   // Validate arguments
@@ -296,13 +296,13 @@ app.post('/api/run', requireAuth, async (req, res) => {
   // Now that jobDir is available, build args
   const args = [
     '-File', scriptPath,
-    '-TenantID', tenantId,
+    '-TenantId', tenantId,
+    '-SubscriptionId', subscriptionId,
     '-AppId', process.env.AZURE_CLIENT_ID,
     '-Secret', process.env.AZURE_CLIENT_SECRET,
-    '-SubscriptionID', subscriptionId,
-    '-ReportDir', jobDir,
+    '-OutputDir', jobDir,
     '-ReportName', `AzureResourceInventory_Report_${new Date().toISOString().replace(/[:.]/g,'_')}.xlsx`,
-    '-Debug'
+    '-AzureEnvironment', AZURE_ENVIRONMENT
   ];
   // Debug: log the PowerShell args array and values (after args is defined)
   const debugArgsLog = [

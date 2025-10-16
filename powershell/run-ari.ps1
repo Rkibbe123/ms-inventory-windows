@@ -13,6 +13,16 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
+# Force TLS 1.2 for Azure connectivity (required for corporate networks)
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# TEMPORARY: Skip SSL certificate validation (ONLY for corporate proxy testing)
+# Remove this in production!
+if ($env:SKIP_SSL_VALIDATION -eq 'true') {
+  Write-Host "WARNING: SSL certificate validation is disabled (testing only)" -ForegroundColor Red
+  [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+}
+
 function Write-Log($msg) { $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'; Write-Host "[$timestamp] $msg" }
 
 Write-Log "PowerShell version: $($PSVersionTable.PSVersion)"

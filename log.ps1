@@ -1,8 +1,8 @@
-Set-Content -Path .\GetTenants.ps1 -Value "# Inspect each 500 FREB you listed and print key fields
+ 
 $files = @(
- 'C:\home\LogFiles\W3SVC1669251875\fr000485.xml',
- 'C:\home\LogFiles\W3SVC1669251875\fr000486.xml',
- 'C:\home\LogFiles\W3SVC1669251875\fr000482.xml',
+ 'C:\home\LogFiles\W3SVC1669251875\fr000489.xml',
+ 'C:\home\LogFiles\W3SVC1669251875\fr000490.xml',
+ 'C:\home\LogFiles\W3SVC1669251875\fr000491.xml',
  'C:\home\LogFiles\W3SVC1669251875\fr000481.xml'
 )
 foreach ($p in $files) {
@@ -14,4 +14,4 @@ foreach ($p in $files) {
   $mod = (Select-Xml -Xml $x -XPath "//ev:Data[@Name='ModuleName']" -Namespace $ns | Select-Object -Last 1).Node.'#text'
   $note = (Select-Xml -Xml $x -XPath "//ev:RenderingInfo/freb:Description[@Data='Notification']" -Namespace $ns | Select-Object -Last 1).Node.'#text'
   Write-Host "$(Split-Path $p -Leaf): status=$status/$sub url=$url module=$mod notification=$note"
-}"  
+}

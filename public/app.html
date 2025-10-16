@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Azure Resource Inventory - Run</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f5f5f5; }
+    .header { background: white; padding: 16px 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; justify-content: space-between; }
+    .header h1 { margin: 0; color: #0078d4; }
+    .main { max-width: 1200px; margin: 40px auto; padding: 0 24px; }
+    .card { background: white; padding: 24px; border-radius: 8px; margin-bottom: 24px; }
+    select, input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+    .run-btn { background: #0078d4; color: white; border: none; padding: 12px 32px; font-size: 1.1em; border-radius: 6px; cursor: pointer; }
+    .status { background: #f7f7f7; padding: 16px; border-radius: 6px; white-space: pre-line; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🔍 Azure Resource Inventory</h1>
+    <button id="logoutBtn">Sign out</button>
+  </div>
+  <div class="main">
+    <div class="card">
+      <h2>Run Inventory</h2>
+      <label>Tenant ID</label>
+      <input type="text" id="tenantId" placeholder="Enter tenant ID" />
+      <br><br>
+      <label>Subscription ID (optional)</label>
+      <input type="text" id="subscriptionId" placeholder="Enter subscription ID" />
+      <br><br>
+      <button class="run-btn" id="runBtn">Run Invoke-ARI</button>
+    </div>
+    <div class="card">
+      <h2>Status</h2>
+      <div class="status" id="status">Ready</div>
+    </div>
+  </div>
+  <script>
+    document.getElementById('logoutBtn').onclick = async () => {
+      await fetch('/auth/logout', { method: 'POST' });
+      window.location = '/';
+    };
+    document.getElementById('runBtn').onclick = async () => {
+      const tenantId = document.getElementById('tenantId').value.trim();
+      const subscriptionId = document.getElementById('subscriptionId').value.trim();
+      if (!tenantId) return alert('Tenant ID is required');
+      document.getElementById('status').textContent = 'Starting...';
+      try {
+        const res = await fetch('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenantId, subscriptionId })
+        });
+        const data = await res.json();
+        document.getElementById('status').textContent = `Job started: ${data.jobId}\nLog: ${data.logUrl}`;
+        pollJob(data.jobId);
+      } catch(e) {
+        document.getElementById('status').textContent = 'Error: ' + e.message;
+      }
+    };
+    function pollJob(jobId) {
+      setInterval(async () => {
+        try {
+          const res = await fetch(`/api/jobs/${jobId}/status`);
+          const job = await res.json();
+          const files = (job.files || []).map(f => `- ${f}`).join('\n');
+          document.getElementById('status').textContent = `Status: ${job.status}\nFiles:\n${files}`;
+        } catch(e) {}
+      }, 3000);
+    }
+  </script>
+</body>
+</html>

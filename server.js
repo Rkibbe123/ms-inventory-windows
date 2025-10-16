@@ -392,8 +392,19 @@ app.get('/api/jobs/:jobId/log', requireAuth, (req, res) => {
   res.sendFile(job.logPath);
 });
 
+// Landing page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// App page
+app.get('/app', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'app.html'));
+});
+
+// Simple auth/login - just redirect to app
+app.get('/auth/login', (req, res) => {
+  res.redirect('/app');
 });
 
 app.listen(PORT, () => {

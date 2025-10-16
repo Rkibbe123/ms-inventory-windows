@@ -1,10 +1,13 @@
 param(
   [Parameter(Mandatory = $true)][string]$TenantId,
   [string]$SubscriptionId,
-  [Parameter(Mandatory = $true)][string]$AccessToken,
-  [Parameter(Mandatory = $true)][string]$AccountId,
+  [string]$AccessToken,
+  [string]$AccountId,
+  [string]$AppId,
+  [string]$Secret,
   [Parameter(Mandatory = $true)][string]$OutputDir,
-  [string]$AzureEnvironment = 'AzureCloud'
+  [string]$AzureEnvironment = 'AzureCloud',
+  [string]$ReportName = 'AzureResourceInventory'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,8 +38,19 @@ Ensure-Module -Name 'AzureResourceInventory'
 Write-Log 'Importing AzureResourceInventory'
 Import-Module AzureResourceInventory -Force
 
-Write-Log "Connecting to Azure tenant $TenantId as $AccountId using access token"
-Connect-AzAccount -AccessToken $AccessToken -TenantId $TenantId -AccountId $AccountId -Environment $AzureEnvironment | Out-Null
+# Support both service principal (AppId/Secret) and user delegation (AccessToken) authentication
+if ($AppId -and $Secret) {
+  Write-Log "Connecting to Azure tenant $TenantId using service principal $AppId"
+  $SecurePassword = ConvertTo-SecureString -String $Secret -AsPlainText -Force
+  $Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $AppId, $SecurePassword
+  Connect-AzAccount -ServicePrincipal -TenantId $TenantId -Credential $Credential -Environment $AzureEnvironment | Out-Null
+} elseif ($AccessToken -and $AccountId) {
+  Write-Log "Connecting to Azure tenant $TenantId as $AccountId using access token"
+  Connect-AzAccount -AccessToken $AccessToken -TenantId $TenantId -AccountId $AccountId -Environment $AzureEnvironment | Out-Null
+} else {
+  Write-Error "Must provide either (AppId + Secret) or (AccessToken + AccountId) for authentication"
+  exit 1
+}
 
 if ($SubscriptionId) {
   Write-Log "Setting context to subscription $SubscriptionId"
@@ -45,6 +59,7 @@ if ($SubscriptionId) {
 
 $invokeParams = @{ TenantID = $TenantId; ReportDir = $OutputDir; NoAutoUpdate = $true }
 if ($SubscriptionId) { $invokeParams['SubscriptionID'] = $SubscriptionId }
+if ($ReportName) { $invokeParams['ReportName'] = $ReportName }
 
 Write-Log 'Starting Invoke-ARI'
 Invoke-ARI @invokeParams

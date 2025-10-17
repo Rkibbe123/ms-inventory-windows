@@ -50,8 +50,9 @@ function buildRedirectUri(req) {
 
 // Get account from session
 async function getAccount(req) {
-  if (!req.session || !req.session.homeAccountId) return null;
-  return await getCca().getTokenCache().getAccountByHomeId(req.session.homeAccountId);
+    if (req.session && req.session.account) return req.session.account;
+    if (!req.session || !req.session.homeAccountId) return null;
+    return await getCca().getTokenCache().getAccountByHomeId(req.session.homeAccountId);
 }
 
 // Get ARM token for user
@@ -177,7 +178,7 @@ app.get('/auth/login', async (req, res) => {
     const authCodeUrlParameters = {
       scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'offline_access'],
       redirectUri,
-      prompt: 'select_account'
+      prompt: 'consent'
     };
     const authCodeUrl = await tenantCca.getAuthCodeUrl(authCodeUrlParameters);
     res.redirect(authCodeUrl);
@@ -209,13 +210,16 @@ app.get('/auth/redirect', async (req, res) => {
     const redirectUri = buildRedirectUri(req);
     const tokenResponse = await tenantCca.acquireTokenByCode({
       code: req.query.code,
-      scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'email', 'offline_access'],
+      scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'offline_access'],
       redirectUri
     });
-    const account = tokenResponse.account;
-    req.session.homeAccountId = account.homeAccountId;
-    req.session.username = account.username;
-    req.session.primaryTenant = tenantId;
+    // Debug: log the full token response
+    console.log('[DEBUG] Token response from acquireTokenByCode:', JSON.stringify(tokenResponse, null, 2));
+  const account = tokenResponse.account;
+  req.session.homeAccountId = account.homeAccountId;
+  req.session.username = account.username;
+  req.session.primaryTenant = tenantId;
+  req.session.account = account;
     
     // Clear the temporary login tenant
     delete req.session.loginTenant;
@@ -238,19 +242,35 @@ app.get('/api/me', requireAuth, async (req, res) => {
 
 app.get('/api/tenants', requireAuth, async (req, res) => {
   try {
+    // Debug: log session and incoming tenantId
+    console.log('[DEBUG] /api/tenants called');
+    console.log('[DEBUG] req.session:', JSON.stringify(req.session));
+    let tenantId = req.query.tenantId || req.session.primaryTenant;
+    console.log('[DEBUG] Using tenantId:', tenantId);
     const account = await getAccount(req);
-    const result = await getCca().acquireTokenSilent({ 
-      account, 
-      authority: 'https://login.microsoftonline.com/common', 
-      scopes: ['https://management.azure.com/.default'] 
-    });
-    const token = result.accessToken;
-    const { data } = await axios.get('https://management.azure.com/tenants?api-version=2020-01-01', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const tenants = (data.value || []).map((t) => ({ tenantId: t.tenantId, displayName: t.displayName || t.tenantId }));
-    res.json({ tenants });
+    if (!account) {
+      console.log('[DEBUG] No account found in session');
+    }
+    const authority = tenantId ? `https://login.microsoftonline.com/${tenantId}` : 'https://login.microsoftonline.com/common';
+    try {
+      const result = await getCca().acquireTokenSilent({ 
+        account, 
+        authority,
+        scopes: ['https://management.azure.com/.default'] 
+      });
+      const token = result.accessToken;
+      const { data } = await axios.get('https://management.azure.com/tenants?api-version=2020-01-01', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const tenants = (data.value || []).map((t) => ({ tenantId: t.tenantId, displayName: t.displayName || t.tenantId }));
+      console.log('[DEBUG] Tenants loaded:', tenants);
+      res.json({ tenants });
+    } catch (tokenErr) {
+      console.log('[DEBUG] Token or API error:', tokenErr);
+      res.status(500).json({ error: tokenErr.message });
+    }
   } catch (err) {
+    console.log('[DEBUG] General error in /api/tenants:', err);
     res.status(500).json({ error: err.message });
   }
 });

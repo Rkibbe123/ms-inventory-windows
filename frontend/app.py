@@ -27,6 +27,8 @@ CLIENT_SECRET = os.environ.get('AZURE_CLIENT_SECRET')
 TENANT_ID = os.environ.get('AZURE_TENANT_ID', 'common')
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 REDIRECT_PATH = "/getAToken"
+# Optional explicit override for redirect URI (useful behind proxies/production)
+FLASK_REDIRECT_URI = os.environ.get('FLASK_REDIRECT_URI')
 SCOPE = ["https://management.azure.com/.default"]
 
 # Azure Storage Configuration
@@ -54,7 +56,7 @@ def _build_auth_url(authority=None, scopes=None, state=None):
     return _build_msal_app(authority=authority).get_authorization_request_url(
         scopes or [],
         state=state or str(uuid.uuid4()),
-        redirect_uri=url_for("authorized", _external=True)
+        redirect_uri=(FLASK_REDIRECT_URI or url_for("authorized", _external=True))
     )
 
 
@@ -146,9 +148,20 @@ def index():
 @app.route("/login")
 def login():
     """Login page"""
-    session["state"] = str(uuid.uuid4())
-    auth_url = _build_auth_url(scopes=SCOPE, state=session["state"])
-    return render_template("login.html", auth_url=auth_url)
+    tenant_id = request.args.get('tenant')
+    
+    # If tenant is provided, start the OAuth flow
+    if tenant_id:
+        session["state"] = str(uuid.uuid4())
+        session["login_tenant"] = tenant_id
+        
+        # Build authority with specific tenant
+        tenant_authority = f"https://login.microsoftonline.com/{tenant_id}"
+        auth_url = _build_auth_url(authority=tenant_authority, scopes=SCOPE, state=session["state"])
+        return redirect(auth_url)
+    
+    # Otherwise, show the login page with tenant selection
+    return render_template("login.html", tenant_id=None)
 
 
 @app.route(REDIRECT_PATH)
@@ -161,15 +174,23 @@ def authorized():
         return render_template("error.html", error=request.args)
     
     if request.args.get('code'):
+        tenant_id = session.get("login_tenant")
+        
         cache = msal.SerializableTokenCache()
         if session.get("token_cache"):
             cache.deserialize(session["token_cache"])
         
-        cca = _build_msal_app(cache=cache)
+        # Build MSAL app with the same tenant used for login
+        if tenant_id:
+            tenant_authority = f"https://login.microsoftonline.com/{tenant_id}"
+            cca = _build_msal_app(cache=cache, authority=tenant_authority)
+        else:
+            cca = _build_msal_app(cache=cache)
+        
         result = cca.acquire_token_by_authorization_code(
             request.args['code'],
             scopes=SCOPE,
-            redirect_uri=url_for("authorized", _external=True)
+            redirect_uri=(FLASK_REDIRECT_URI or url_for("authorized", _external=True))
         )
         
         if "error" in result:
@@ -177,6 +198,11 @@ def authorized():
         
         session["user"] = result.get("id_token_claims")
         session["token_cache"] = cache.serialize()
+        session["primary_tenant"] = tenant_id
+        
+        # Clear temporary login tenant
+        if "login_tenant" in session:
+            del session["login_tenant"]
     
     return redirect(url_for("index"))
 

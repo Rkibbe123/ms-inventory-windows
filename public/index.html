@@ -3,138 +3,198 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Azure Resource Inventory Runner</title>
+  <title>Azure Resource Inventory</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Noto Sans', 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji'; margin: 24px; }
-    .row { margin: 12px 0; }
-    button { padding: 8px 12px; }
-    select, input { padding: 6px; min-width: 320px; }
-    .hidden { display: none; }
-    #status { white-space: pre-line; background: #f7f7f7; padding: 10px; border-radius: 6px; }
-    .muted { color: #666; }
-    a { color: #0366d6; }
+    body {
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0078d4 0%, #00bcf2 100%);
+      color: white;
+    }
+    .container {
+      text-align: center;
+      padding: 40px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      max-width: 500px;
+      width: 90%;
+    }
+    h1 {
+      font-size: 2.5em;
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+    p {
+      font-size: 1.1em;
+      margin-bottom: 30px;
+      opacity: 0.9;
+    }
+    .form-group {
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      font-size: 0.95em;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 1em;
+      box-sizing: border-box;
+    }
+    .form-group input:focus {
+      outline: 2px solid rgba(255, 255, 255, 0.5);
+    }
+    .form-group small {
+      display: block;
+      margin-top: 6px;
+      opacity: 0.8;
+      font-size: 0.85em;
+    }
+    .login-btn {
+      background: white;
+      color: #0078d4;
+      border: none;
+      padding: 15px 40px;
+      font-size: 1.1em;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      width: 100%;
+    }
+    .login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    }
+    .login-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .features {
+      margin-top: 40px;
+      text-align: left;
+      padding: 20px;
+    }
+    .feature {
+      margin: 15px 0;
+      display: flex;
+      align-items: center;
+    }
+    .feature::before {
+      content: "✓";
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      text-align: center;
+      line-height: 24px;
+      margin-right: 12px;
+      font-weight: bold;
+    }
+    .error {
+      background: rgba(255, 0, 0, 0.2);
+      padding: 12px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-size: 0.9em;
+    }
   </style>
 </head>
 <body>
-  <h2>Azure Resource Inventory (Invoke-ARI) - App Service Frontend</h2>
-
-  <div class="row" id="authRow">
-    <button id="loginBtn">Sign in with Microsoft</button>
-    <button id="logoutBtn" class="hidden">Sign out</button>
-    <span id="userSpan" class="muted"></span>
-  </div>
-
-  <div id="app" class="hidden">
-    <div class="row">
-      <label>Tenant</label><br />
-      <select id="tenantSelect"></select>
+  <div class="container">
+    <h1>🔍 Azure Resource Inventory</h1>
+    <p>Comprehensive Azure resource documentation and network topology visualization</p>
+    
+    <div id="errorMessage" class="error" style="display: none;"></div>
+    
+    <div class="form-group">
+      <label for="tenantInput">Azure Tenant ID</label>
+      <input 
+        type="text" 
+        id="tenantInput" 
+        placeholder="e.g., ed9aa516-5358-4016-a8b2-b6ccb99142d0"
+        value=""
+      />
+      <small>Enter your Azure AD Tenant ID (GUID format)</small>
     </div>
-    <div class="row">
-      <label>Subscription (optional)</label><br />
-      <select id="subscriptionSelect">
-        <option value="">All accessible in tenant</option>
-      </select>
-    </div>
-    <div class="row">
-      <button id="runBtn">Run Invoke-ARI</button>
-    </div>
-
-    <div class="row">
-      <div id="status" class="muted">Idle</div>
+    
+    <button class="login-btn" id="loginBtn">Sign in with Microsoft</button>
+    
+    <div class="features">
+      <div class="feature">Generate detailed Excel reports of your Azure resources</div>
+      <div class="feature">Visualize network topology with Draw.io diagrams</div>
+      <div class="feature">Analyze 1000+ advisories and policies</div>
+      <div class="feature">Support for multiple tenants and subscriptions</div>
     </div>
   </div>
 
   <script>
+    const tenantInput = document.getElementById('tenantInput');
     const loginBtn = document.getElementById('loginBtn');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const userSpan = document.getElementById('userSpan');
-    const appDiv = document.getElementById('app');
-    const tenantSelect = document.getElementById('tenantSelect');
-    const subscriptionSelect = document.getElementById('subscriptionSelect');
-    const runBtn = document.getElementById('runBtn');
-    const statusDiv = document.getElementById('status');
+    const errorMessage = document.getElementById('errorMessage');
 
-    async function getJSON(url) {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
+    // Load saved tenant from localStorage
+    const savedTenant = localStorage.getItem('azureTenantId');
+    if (savedTenant) {
+      tenantInput.value = savedTenant;
     }
 
-    async function postJSON(url, body) {
-      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)});
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
+    // Validate GUID format
+    function isValidGuid(str) {
+      const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return guidPattern.test(str);
     }
 
-    async function refreshAuth() {
-      try {
-        const me = await getJSON('/api/me');
-        loginBtn.classList.add('hidden');
-        logoutBtn.classList.remove('hidden');
-    userSpan.textContent = `Signed in as ${me.name || me.userDetails || me.username || 'unknown'}`;
-        appDiv.classList.remove('hidden');
-        await loadTenants();
-      } catch {
-        loginBtn.classList.remove('hidden');
-        logoutBtn.classList.add('hidden');
-        userSpan.textContent = '';
-        appDiv.classList.add('hidden');
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorMessage.style.display = 'block';
+      setTimeout(() => {
+        errorMessage.style.display = 'none';
+      }, 5000);
+    }
+
+    loginBtn.onclick = () => {
+      const tenantId = tenantInput.value.trim();
+      
+      if (!tenantId) {
+        showError('Please enter a Tenant ID');
+        return;
       }
-    }
 
-    async function loadTenants() {
-      tenantSelect.innerHTML = '';
-      const data = await getJSON('/api/tenants');
-      for (const t of data.tenants) {
-        const opt = document.createElement('option');
-        opt.value = t.tenantId;
-        opt.textContent = `${t.displayName || t.tenantId} (${t.tenantId})`;
-        tenantSelect.appendChild(opt);
+      if (!isValidGuid(tenantId)) {
+        showError('Please enter a valid Tenant ID in GUID format (e.g., xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)');
+        return;
       }
-      await loadSubscriptions();
-    }
 
-    async function loadSubscriptions() {
-      subscriptionSelect.innerHTML = '<option value="">All accessible in tenant</option>';
-      const tenantId = tenantSelect.value;
-      if (!tenantId) return;
-      const data = await getJSON(`/api/subscriptions?tenantId=${encodeURIComponent(tenantId)}`);
-      for (const s of data.subscriptions) {
-        const opt = document.createElement('option');
-        opt.value = s.subscriptionId;
-        opt.textContent = `${s.displayName} (${s.subscriptionId})`;
-        subscriptionSelect.appendChild(opt);
-      }
-    }
-
-    async function pollJob(jobId) {
-      const poll = async () => {
-        try {
-          const j = await getJSON(`/api/jobs/${jobId}/status`);
-          const files = (j.files || []).map(f => `- ${f}`).join('\n');
-          statusDiv.textContent = `Status: ${j.status}\nStarted: ${j.startedAt}\nEnded: ${j.endedAt || ''}\nOutputs: /outputs/${jobId}/\n${files}\nLog: /api/jobs/${jobId}/log`;
-          if (j.status === 'running') setTimeout(poll, 5000);
-        } catch (e) {
-          statusDiv.textContent = 'Failed to get job status: ' + e.message;
-        }
-      };
-      poll();
-    }
-
-  loginBtn.onclick = () => { window.location = '/.auth/login/aad'; };
-    logoutBtn.onclick = async () => { await postJSON('/auth/logout', {}); await refreshAuth(); };
-    tenantSelect.onchange = loadSubscriptions;
-
-    runBtn.onclick = async () => {
-      statusDiv.textContent = 'Starting...';
-      const tenantId = tenantSelect.value;
-      const subscriptionId = subscriptionSelect.value || undefined;
-      const res = await postJSON('/api/run', { tenantId, subscriptionId });
-      statusDiv.textContent = `Job started: ${res.jobId}\nLog: ${res.logUrl}`;
-      await pollJob(res.jobId);
+      // Save tenant to localStorage for next time
+      localStorage.setItem('azureTenantId', tenantId);
+      
+      // Redirect to login with tenant parameter
+      window.location = `/auth/login?tenant=${encodeURIComponent(tenantId)}`;
     };
 
-    refreshAuth();
+    // Allow Enter key to submit
+    tenantInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        loginBtn.click();
+      }
+    });
   </script>
 </body>
 </html>

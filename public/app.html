@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Azure Resource Inventory - Run</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+    }
+    .header {
+      background: white;
+      padding: 16px 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 1.5em;
+      color: #0078d4;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .user-name {
+      color: #666;
+    }
+    .logout-btn {
+      background: #f0f0f0;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .logout-btn:hover {
+      background: #e0e0e0;
+    }
+    .main {
+      max-width: 1200px;
+      margin: 40px auto;
+      padding: 0 24px;
+    }
+    .card {
+      background: white;
+      padding: 24px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 24px;
+    }
+    .card h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #555;
+      font-weight: 500;
+    }
+    select, input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1em;
+    }
+    select:focus, input:focus {
+      outline: none;
+      border-color: #0078d4;
+    }
+    .run-btn {
+      background: #0078d4;
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      font-size: 1.1em;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .run-btn:hover {
+      background: #005a9e;
+    }
+    .run-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .status {
+      background: #f7f7f7;
+      padding: 16px;
+      border-radius: 6px;
+      white-space: pre-line;
+      font-family: monospace;
+      font-size: 0.9em;
+      min-height: 100px;
+    }
+    .status.running {
+      background: #e3f2fd;
+      border-left: 4px solid #0078d4;
+    }
+    .status.succeeded {
+      background: #e8f5e9;
+      border-left: 4px solid #4caf50;
+    }
+    .status.failed {
+      background: #ffebee;
+      border-left: 4px solid #f44336;
+    }
+    .loading {
+      color: #666;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🔍 Azure Resource Inventory</h1>
+    <div class="user-info">
+      <span class="user-name" id="userName">Loading...</span>
+      <button class="logout-btn" id="logoutBtn">Sign out</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="card">
+      <h2>Select Tenant & Subscription</h2>
+      
+      <div class="form-group">
+        <label for="tenantSelect">Tenant</label>
+        <select id="tenantSelect">
+          <option value="">Loading tenants...</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="subscriptionSelect">Subscription (optional)</label>
+        <select id="subscriptionSelect">
+          <option value="">All accessible in tenant</option>
+        </select>
+      </div>
+
+      <button class="run-btn" id="runBtn">Run Invoke-ARI</button>
+    </div>
+
+    <div class="card">
+      <h2>Job Status</h2>
+      <div id="status" class="status">Ready to run. Select a tenant and click "Run Invoke-ARI".</div>
+    </div>
+  </div>
+
+  <script>
+    async function fetchJSON(url) {
+      const res = await fetch(url);
+      if (!res.ok) {
+        const text = await res.text();
+        if (res.status === 401) {
+          window.location = '/';
+          throw new Error('Not authenticated');
+        }
+        throw new Error(text);
+      }
+      return res.json();
+    }
+
+    async function postJSON(url, body) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    async function init() {
+      try {
+        // Get user info
+        const me = await fetchJSON('/api/me');
+        document.getElementById('userName').textContent = me.username || 'User';
+        
+        // Load tenants
+        await loadTenants();
+      } catch (err) {
+        console.error('Init error:', err);
+        window.location = '/';
+      }
+    }
+
+    async function loadTenants() {
+      const tenantSelect = document.getElementById('tenantSelect');
+      
+      try {
+        const data = await fetchJSON('/api/tenants');
+        const tenants = data.tenants || [];
+        
+        tenantSelect.innerHTML = '';
+        if (tenants.length > 0) {
+          for (const t of tenants) {
+            const opt = document.createElement('option');
+            opt.value = t.tenantId;
+            opt.textContent = `${t.displayName || t.tenantId}`;
+            tenantSelect.appendChild(opt);
+          }
+        } else {
+          tenantSelect.innerHTML = '<option value="">No tenants found</option>';
+        }
+        
+        await loadSubscriptions();
+      } catch (err) {
+        tenantSelect.innerHTML = '<option value="">Failed to load tenants</option>';
+        console.error('Load tenants error:', err);
+      }
+    }
+
+    async function loadSubscriptions() {
+      const tenantId = document.getElementById('tenantSelect').value;
+      const subscriptionSelect = document.getElementById('subscriptionSelect');
+      
+      subscriptionSelect.innerHTML = '<option value="">All accessible in tenant</option>';
+      
+      if (!tenantId) return;
+      
+      subscriptionSelect.innerHTML = '<option value="">Loading...</option>';
+      
+      try {
+        const data = await fetchJSON(`/api/subscriptions?tenantId=${encodeURIComponent(tenantId)}`);
+        subscriptionSelect.innerHTML = '<option value="">All accessible in tenant</option>';
+        for (const s of data.subscriptions || []) {
+          const opt = document.createElement('option');
+          opt.value = s.subscriptionId;
+          opt.textContent = `${s.displayName}`;
+          subscriptionSelect.appendChild(opt);
+        }
+      } catch (err) {
+        subscriptionSelect.innerHTML = '<option value="">Failed to load subscriptions</option>';
+        console.error('Load subscriptions error:', err);
+      }
+    }
+
+    function setStatus(text, type = '') {
+      const statusDiv = document.getElementById('status');
+      statusDiv.textContent = text;
+      statusDiv.className = 'status ' + type;
+    }
+
+    async function pollJob(jobId) {
+      const poll = async () => {
+        try {
+          const job = await fetchJSON(`/api/jobs/${jobId}/status`);
+          const files = (job.files || []).map(f => `  - ${f}`).join('\n');
+          const statusText = `Status: ${job.status}
+Started: ${job.startedAt}
+Ended: ${job.endedAt || 'In progress...'}
+Job ID: ${jobId}
+
+Output Files:
+${files || '  (none yet)'}
+
+Log: /api/jobs/${jobId}/log
+Outputs: /outputs/${jobId}/`;
+
+          setStatus(statusText, job.status);
+          
+          if (job.status === 'running') {
+            setTimeout(poll, 3000);
+          } else {
+            document.getElementById('runBtn').disabled = false;
+          }
+        } catch (err) {
+          setStatus('Error polling job: ' + err.message, 'failed');
+        }
+      };
+      
+      poll();
+    }
+
+    // Event listeners
+    document.getElementById('logoutBtn').onclick = async () => {
+      await postJSON('/auth/logout', {});
+      window.location = '/';
+    };
+
+    document.getElementById('tenantSelect').onchange = loadSubscriptions;
+
+    document.getElementById('runBtn').onclick = async () => {
+      const tenantId = document.getElementById('tenantSelect').value;
+      const subscriptionId = document.getElementById('subscriptionSelect').value || undefined;
+      
+      if (!tenantId) {
+        setStatus('Please select a tenant', 'failed');
+        return;
+      }
+
+      try {
+        document.getElementById('runBtn').disabled = true;
+        setStatus('Starting job...', 'running');
+        
+        const res = await postJSON('/api/run', { tenantId, subscriptionId });
+        setStatus(`Job started: ${res.jobId}\nWaiting for output...`, 'running');
+        
+        await pollJob(res.jobId);
+      } catch (err) {
+        setStatus('Error starting job: ' + err.message, 'failed');
+        document.getElementById('runBtn').disabled = false;
+      }
+    };
+
+    // Initialize
+    init();
+  </script>
+</body>
+</html>

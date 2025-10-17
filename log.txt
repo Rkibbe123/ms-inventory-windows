@@ -1,0 +1,250 @@
+[2025-10-16T13:29:18.060Z] App startup
+[2025-10-16T13:29:18.067Z] Server listening on port 3000
+[2025-10-16T13:31:31.715Z] App startup
+[2025-10-16T13:31:31.722Z] Server listening on port 3000
+[2025-10-16T13:31:43.722Z] GET /api/tenants called
+[2025-10-16T13:31:43.725Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:34:23.061Z] App startup
+[2025-10-16T13:34:23.068Z] Server listening on port 3000
+[2025-10-16T13:34:33.895Z] GET /api/tenants called
+[2025-10-16T13:34:33.898Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:34:42.863Z] POST /api/run called
+[2025-10-16T13:34:50.432Z] GET /api/tenants called
+[2025-10-16T13:34:50.433Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:34:51.440Z] GET /api/tenants called
+[2025-10-16T13:34:51.441Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:39:29.338Z] App startup
+[2025-10-16T13:39:29.344Z] Server listening on port 3000
+[2025-10-16T13:39:34.383Z] GET /api/tenants called
+[2025-10-16T13:39:34.387Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:39:36.694Z] GET /api/tenants called
+[2025-10-16T13:39:36.695Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:39:37.433Z] GET /api/tenants called
+[2025-10-16T13:39:37.435Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:39:54.419Z] App startup
+[2025-10-16T13:39:54.425Z] Server listening on port 3000
+[2025-10-16T13:40:08.304Z] GET /api/tenants called
+[2025-10-16T13:40:08.307Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:41:35.273Z] App startup
+[2025-10-16T13:41:35.280Z] Server listening on port 3000
+[2025-10-16T13:41:37.893Z] GET /api/tenants called
+[2025-10-16T13:41:37.896Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:41:39.947Z] GET /api/tenants called
+[2025-10-16T13:41:39.948Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:41:40.515Z] GET /api/tenants called
+[2025-10-16T13:41:40.516Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:42:02.665Z] GET /api/tenants called
+[2025-10-16T13:42:02.666Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:43:06.930Z] App startup
+[2025-10-16T13:43:06.936Z] Server listening on port 3000
+[2025-10-16T13:43:09.854Z] GET /api/tenants called
+[2025-10-16T13:43:09.858Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:43:11.184Z] GET /api/tenants called
+[2025-10-16T13:43:11.186Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:43:28.950Z] GET /api/tenants called
+[2025-10-16T13:43:28.952Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:44:51.000Z] App startup
+[2025-10-16T13:44:51.007Z] Server listening on port 3000
+[2025-10-16T13:44:54.582Z] GET /api/tenants called
+[2025-10-16T13:44:54.585Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T13:45:44.321Z] POST /api/run called
+[2025-10-16T13:45:48.208Z] POST /api/run called
+[2025-10-16T14:00:10.849Z] App startup
+[2025-10-16T14:00:10.856Z] Server listening on port 3000
+[2025-10-16T14:01:11.841Z] GET /api/tenants called
+[2025-10-16T14:01:11.845Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T14:01:42.357Z] POST /api/run called
+[2025-10-16T14:06:53.258Z] App startup
+[2025-10-16T14:06:53.267Z] Server listening on port 3000
+[2025-10-16T14:06:57.066Z] GET /api/tenants called
+[2025-10-16T14:06:57.072Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T14:07:12.787Z] POST /api/run called
+[2025-10-16T14:23:50.122Z] App startup
+[2025-10-16T14:23:50.129Z] Server listening on port 3000
+[2025-10-16T14:24:10.983Z] GET /api/tenants called
+[2025-10-16T14:24:10.989Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T14:24:29.135Z] POST /api/run called
+[2025-10-16T14:44:18.190Z] App startup
+[2025-10-16T14:44:18.198Z] Server listening on port 3000
+[2025-10-16T14:46:52.935Z] App startup
+[2025-10-16T14:46:52.941Z] Server listening on port 3000
+[2025-10-16T14:49:46.532Z] App startup
+[2025-10-16T14:49:46.539Z] Server listening on port 3000
+[2025-10-16T14:50:08.513Z] GET /api/tenants called
+[2025-10-16T14:50:08.519Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T14:50:25.473Z] POST /api/run called
+[2025-10-16T14:57:51.168Z] App startup
+[2025-10-16T14:57:51.174Z] Server listening on port 3000
+[2025-10-16T14:58:04.153Z] GET /api/tenants called
+[2025-10-16T14:58:04.158Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T14:58:07.703Z] POST /api/run called
+[2025-10-16T15:14:21.515Z] App startup
+[2025-10-16T15:14:21.521Z] Uncaught Exception: Error: listen EADDRINUSE: address already in use :::3000
+    at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at Function.listen (C:\git-personal\ms-inventory-windows\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\git-personal\ms-inventory-windows\server.js:342:5)
+    at Module._compile (node:internal/modules/cjs/loader:1706:14)
+    at Object..js (node:internal/modules/cjs/loader:1839:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+[2025-10-16T15:15:51.880Z] App startup
+[2025-10-16T15:15:51.886Z] Uncaught Exception: Error: listen EADDRINUSE: address already in use :::3000
+    at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at Function.listen (C:\git-personal\ms-inventory-windows\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\git-personal\ms-inventory-windows\server.js:342:5)
+    at Module._compile (node:internal/modules/cjs/loader:1706:14)
+    at Object..js (node:internal/modules/cjs/loader:1839:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+[2025-10-16T15:24:03.414Z] App startup
+[2025-10-16T15:24:03.419Z] Uncaught exception: Error: listen EADDRINUSE: address already in use :::3000
+    at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at Function.listen (C:\git-personal\ms-inventory-windows\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (C:\git-personal\ms-inventory-windows\server.js:355:5)
+    at Module._compile (node:internal/modules/cjs/loader:1706:14)
+    at Object..js (node:internal/modules/cjs/loader:1839:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+[2025-10-16T15:24:03.420Z] Process exit with code 1
+[2025-10-16T15:28:18.964Z] App startup
+[2025-10-16T15:28:18.970Z] Server listening on port 3000
+[2025-10-16T15:31:30.864Z] GET /api/tenants called
+[2025-10-16T15:31:30.866Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T15:31:45.766Z] POST /api/run called
+[2025-10-16T15:37:47.443Z] App startup
+[2025-10-16T15:37:47.450Z] Server listening on port 3000
+[2025-10-16T15:37:53.395Z] GET /api/tenants called
+[2025-10-16T15:37:53.398Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T15:38:07.384Z] POST /api/run called
+[2025-10-16T15:38:07.388Z] Uncaught exception: ReferenceError: Cannot access 'args' before initialization
+    at C:\git-personal\ms-inventory-windows\server.js:293:69
+    at Layer.handle [as handle_request] (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\route.js:149:13)
+    at requireAuth (C:\git-personal\ms-inventory-windows\server.js:94:12)
+    at Layer.handle [as handle_request] (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\layer.js:95:5)
+    at C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\index.js:284:15
+    at Function.process_params (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\index.js:346:12)
+[2025-10-16T15:38:07.389Z] Process exit with code 1
+[2025-10-16T15:44:35.090Z] App startup
+[2025-10-16T15:44:35.096Z] Server listening on port 3000
+[2025-10-16T15:44:50.203Z] GET /api/tenants called
+[2025-10-16T15:44:50.206Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T15:45:06.511Z] POST /api/run called
+[2025-10-16T15:54:20.341Z] App startup
+[2025-10-16T15:54:20.348Z] Server listening on port 3000
+[2025-10-16T15:54:34.301Z] GET /api/tenants called
+[2025-10-16T15:54:34.305Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T15:55:10.126Z] POST /api/run called
+[2025-10-16T16:02:05.829Z] App startup
+[2025-10-16T16:02:05.836Z] Server listening on port 3000
+[2025-10-16T16:02:23.865Z] GET /api/tenants called
+[2025-10-16T16:02:23.869Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:02:44.013Z] POST /api/run called
+[2025-10-16T16:07:45.105Z] App startup
+[2025-10-16T16:07:45.112Z] Server listening on port 3000
+[2025-10-16T16:07:56.613Z] GET /api/tenants called
+[2025-10-16T16:07:56.617Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:08:59.659Z] POST /api/run called
+[2025-10-16T16:14:58.968Z] App startup
+[2025-10-16T16:14:58.975Z] Server listening on port 3000
+[2025-10-16T16:15:17.190Z] GET /api/tenants called
+[2025-10-16T16:15:17.194Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:15:37.207Z] POST /api/run called
+[2025-10-16T16:19:01.818Z] App startup
+[2025-10-16T16:19:01.825Z] Server listening on port 3000
+[2025-10-16T16:19:06.712Z] GET /api/tenants called
+[2025-10-16T16:19:06.716Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:19:20.848Z] POST /api/run called
+[2025-10-16T16:22:29.327Z] App startup
+[2025-10-16T16:22:29.334Z] Server listening on port 3000
+[2025-10-16T16:22:37.399Z] GET /api/tenants called
+[2025-10-16T16:22:37.402Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:22:50.745Z] POST /api/run called
+[2025-10-16T16:26:49.023Z] App startup
+[2025-10-16T16:26:49.029Z] Server listening on port 3000
+[2025-10-16T16:26:56.869Z] GET /api/tenants called
+[2025-10-16T16:26:56.872Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:27:11.628Z] POST /api/run called
+[2025-10-16T16:28:56.470Z] App startup
+[2025-10-16T16:28:56.477Z] Server listening on port 3000
+[2025-10-16T16:29:07.373Z] GET /api/tenants called
+[2025-10-16T16:29:07.376Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:29:08.427Z] GET /api/tenants called
+[2025-10-16T16:29:08.429Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:30:35.170Z] POST /api/run called
+[2025-10-16T16:36:23.809Z] App startup
+[2025-10-16T16:36:23.816Z] Server listening on port 3000
+[2025-10-16T16:36:42.706Z] GET /api/tenants called
+[2025-10-16T16:36:42.710Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:36:54.963Z] POST /api/run called
+[2025-10-16T16:38:58.564Z] App startup
+[2025-10-16T16:38:58.570Z] Server listening on port 3000
+[2025-10-16T16:39:12.883Z] GET /api/tenants called
+[2025-10-16T16:39:12.886Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:39:24.328Z] POST /api/run called
+[2025-10-16T16:42:44.034Z] App startup
+[2025-10-16T16:42:44.041Z] Server listening on port 3000
+[2025-10-16T16:43:03.268Z] GET /api/tenants called
+[2025-10-16T16:43:03.272Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:43:16.507Z] POST /api/run called
+[2025-10-16T16:46:12.957Z] App startup
+[2025-10-16T16:46:12.964Z] Server listening on port 3000
+[2025-10-16T16:46:15.191Z] GET /api/tenants called
+[2025-10-16T16:46:15.195Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:46:27.411Z] POST /api/run called
+[2025-10-16T16:54:55.444Z] App startup
+[2025-10-16T16:54:55.450Z] Server listening on port 3000
+[2025-10-16T16:55:01.528Z] GET /api/tenants called
+[2025-10-16T16:55:01.532Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T16:55:31.443Z] POST /api/run called
+[2025-10-16T18:06:02.837Z] App startup
+[2025-10-16T18:06:02.843Z] Server listening on port 3000
+[2025-10-16T18:06:11.337Z] GET /api/tenants called
+[2025-10-16T18:06:11.341Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T18:06:23.996Z] POST /api/run called
+[2025-10-16T18:14:33.135Z] App startup
+[2025-10-16T18:14:33.142Z] Server listening on port 3000
+[2025-10-16T18:14:42.204Z] GET /api/tenants called
+[2025-10-16T18:14:42.208Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T18:14:56.846Z] POST /api/run called
+[2025-10-16T18:14:56.848Z] Uncaught exception: ReferenceError: Cannot access 'args' before initialization
+    at C:\git-personal\ms-inventory-windows\server.js:276:29
+    at Layer.handle [as handle_request] (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\route.js:149:13)
+    at requireAuth (C:\git-personal\ms-inventory-windows\server.js:94:12)
+    at Layer.handle [as handle_request] (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\layer.js:95:5)
+    at C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\index.js:284:15
+    at Function.process_params (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\index.js:346:12)
+[2025-10-16T18:14:56.850Z] Process exit with code 1
+[2025-10-16T18:19:09.203Z] App startup
+[2025-10-16T18:19:09.211Z] Server listening on port 3000
+[2025-10-16T18:19:14.529Z] GET /api/tenants called
+[2025-10-16T18:19:14.533Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T18:19:31.897Z] POST /api/run called
+[2025-10-16T18:19:31.903Z] Uncaught exception: ReferenceError: Cannot access 'jobDir' before initialization
+    at C:\git-personal\ms-inventory-windows\server.js:282:19
+    at Layer.handle [as handle_request] (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\route.js:149:13)
+    at requireAuth (C:\git-personal\ms-inventory-windows\server.js:94:12)
+    at Layer.handle [as handle_request] (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\layer.js:95:5)
+    at C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\index.js:284:15
+    at Function.process_params (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\index.js:346:12)
+[2025-10-16T18:19:31.907Z] Process exit with code 1

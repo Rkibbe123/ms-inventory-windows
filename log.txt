@@ -248,3 +248,49 @@
     at C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\index.js:284:15
     at Function.process_params (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\index.js:346:12)
 [2025-10-16T18:19:31.907Z] Process exit with code 1
+[2025-10-16T18:37:10.349Z] App startup
+[2025-10-16T18:37:10.372Z] Server listening on port 3000
+[2025-10-16T18:37:38.996Z] GET /api/tenants called
+[2025-10-16T18:37:38.999Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T18:37:51.343Z] POST /api/run called
+[2025-10-16T18:44:53.043Z] App startup
+[2025-10-16T18:44:53.050Z] Server listening on port 3000
+[2025-10-16T18:45:03.240Z] GET /api/tenants called
+[2025-10-16T18:45:03.243Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T18:45:21.510Z] POST /api/run called
+[2025-10-16T18:53:24.403Z] App startup
+[2025-10-16T18:53:24.410Z] Server listening on port 3000
+[2025-10-16T18:53:34.725Z] GET /api/tenants called
+[2025-10-16T18:53:34.728Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T18:53:52.499Z] POST /api/run called
+[2025-10-16T18:55:26.839Z] App startup
+[2025-10-16T18:55:26.845Z] Server listening on port 3000
+[2025-10-16T18:55:28.713Z] GET /api/tenants called
+[2025-10-16T18:55:28.716Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T18:55:54.027Z] POST /api/run called
+[2025-10-16T18:58:25.485Z] App startup
+[2025-10-16T18:58:25.491Z] Server listening on port 3000
+[2025-10-16T18:58:57.568Z] GET /api/tenants called
+[2025-10-16T18:58:57.571Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T18:59:09.356Z] POST /api/run called
+[2025-10-16T19:07:00.715Z] App startup
+[2025-10-16T19:07:00.722Z] Server listening on port 3000
+[2025-10-16T19:07:17.219Z] GET /api/tenants called
+[2025-10-16T19:07:17.221Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T19:07:28.093Z] POST /api/run called
+[2025-10-16T19:18:13.068Z] App startup
+[2025-10-16T19:18:13.075Z] Server listening on port 3000
+[2025-10-16T19:18:27.167Z] GET /api/tenants called
+[2025-10-16T19:18:27.169Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T19:18:44.177Z] POST /api/run called
+[2025-10-16T22:12:58.601Z] App startup
+[2025-10-16T22:12:58.609Z] Server listening on port 3000
+[2025-10-16T22:13:09.729Z] GET /api/tenants called
+[2025-10-16T22:13:09.732Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T22:13:11.972Z] GET /api/tenants called
+[2025-10-16T22:13:11.973Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T22:14:16.989Z] POST /api/run called
+[2025-10-16T22:15:22.172Z] GET /api/tenants called
+[2025-10-16T22:15:22.173Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+[2025-10-16T22:15:35.276Z] GET /api/tenants called
+[2025-10-16T22:15:35.277Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.

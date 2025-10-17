@@ -11,6 +11,19 @@
                 <h3 class="mt-4 mb-3">Authentication Error</h3>
                 <p class="text-muted">An error occurred during authentication.</p>
                 
+                {% if error and (error.error_description or (error|tojson)) and ("AADSTS7000215" in (error.error_description|default('')|string) or "invalid client secret" in (error.error_description|lower)) %}
+                <div class="alert alert-warning text-start mt-4">
+                    <strong>Invalid client secret</strong>
+                    <p class="mb-2">This often happens if you used the <em>Secret ID</em> (GUID) instead of the secret <em>Value</em>.</p>
+                    <ol class="mb-2 text-start">
+                        <li>Azure Portal → Azure Active Directory → App registrations → Your app</li>
+                        <li>Certificates & secrets → Create a new client secret if needed</li>
+                        <li>Copy the <strong>Value</strong> column and set it as <code>AZURE_CLIENT_SECRET</code></li>
+                        <li>Restart the application</li>
+                    </ol>
+                </div>
+                {% endif %}
+                
                 {% if error %}
                 <div class="alert alert-danger text-start mt-4">
                     <strong>Error Details:</strong>

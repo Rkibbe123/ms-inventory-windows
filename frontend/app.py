@@ -58,6 +58,29 @@ def _build_auth_url(authority=None, scopes=None, state=None):
     )
 
 
+def looks_like_secret_id(secret: str) -> bool:
+    if not secret or not isinstance(secret, str):
+        return False
+    import re
+    guid_re = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+    trimmed = secret.strip()
+    looks_guid = bool(guid_re.match(trimmed))
+    suspiciously_short = len(trimmed) <= 36
+    return looks_guid or suspiciously_short
+
+
+def warn_if_suspicious_secret():
+    if looks_like_secret_id(CLIENT_SECRET):
+        logger.warning("AZURE_CLIENT_SECRET looks like a Secret ID (GUID) or is short. Use the secret VALUE, not its ID.")
+
+
+def is_invalid_client_secret_error(error_message: str) -> bool:
+    if not error_message:
+        return False
+    m = error_message.lower()
+    return ("aadsts7000215" in m) or ("invalid_client" in m and "secret" in m)
+
+
 def _get_token_from_cache(scope=None):
     """Get token from cache"""
     cache = session.get("token_cache")
@@ -185,13 +208,31 @@ def authorized():
         else:
             cca = _build_msal_app(cache=cache)
         
-        result = cca.acquire_token_by_authorization_code(
-            request.args['code'],
-            scopes=SCOPE,
-            redirect_uri=url_for("authorized", _external=True)
-        )
+        try:
+            result = cca.acquire_token_by_authorization_code(
+                request.args['code'],
+                scopes=SCOPE,
+                redirect_uri=url_for("authorized", _external=True)
+            )
+        except Exception as e:
+            msg = str(e)
+            if is_invalid_client_secret_error(msg):
+                friendly = {
+                    "error": "invalid_client",
+                    "error_description": "AADSTS7000215: Invalid client secret provided. Ensure you are using the secret VALUE, not the Secret ID (GUID).",
+                }
+                return render_template("error.html", error=friendly)
+            return render_template("error.html", error={"error": "auth_error", "error_description": msg})
         
         if "error" in result:
+            # MSAL may return an error dict instead of raising
+            desc = result.get("error_description", "Authentication failed")
+            if is_invalid_client_secret_error(desc):
+                friendly = {
+                    "error": "invalid_client",
+                    "error_description": "AADSTS7000215: Invalid client secret provided. Ensure you are using the secret VALUE, not the Secret ID (GUID).",
+                }
+                return render_template("error.html", error=friendly)
             return render_template("error.html", error=result)
         
         session["user"] = result.get("id_token_claims")
@@ -408,6 +449,11 @@ if __name__ == "__main__":
     # Ensure required environment variables are set
     if not CLIENT_ID or not CLIENT_SECRET:
         logger.warning("Azure AD credentials not configured. Set AZURE_CLIENT_ID and AZURE_CLIENT_SECRET environment variables.")
+    else:
+        try:
+            warn_if_suspicious_secret()
+        except Exception:
+            pass
     
     if not STORAGE_ACCOUNT_NAME or not STORAGE_ACCOUNT_KEY:
         logger.warning("Azure Storage not configured. Set AZURE_STORAGE_ACCOUNT_NAME and AZURE_STORAGE_ACCOUNT_KEY environment variables.")

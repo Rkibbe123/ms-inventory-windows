@@ -146,8 +146,20 @@ Your Azure AD app is missing the required API permission. Choose one method:
 
 ## Troubleshooting
 
+### Getting AADSTS7000215 - Invalid client secret?
+👉 You're using the **Client Secret ID** instead of the **Client Secret Value**.  
+📖 **Detailed Fix Guide:** [FIX_AADSTS7000215_ERROR.md](./FIX_AADSTS7000215_ERROR.md)
+
+**Quick Fix:**
+1. Go to Azure Portal → App registrations → Certificates & secrets
+2. Create a new client secret
+3. Copy the **Value** column (not the Secret ID!)
+4. Update `.env`: `AZURE_CLIENT_SECRET=your-secret-value-here`
+5. Restart the application
+
 ### Getting AADSTS500113 - No reply address registered?
-👉 Make sure you completed **Step 1** (Add Redirect URIs).
+👉 Make sure you completed **Step 1** (Add Redirect URIs).  
+📖 **Detailed Fix Guide:** [FIX_AADSTS500113_ERROR.md](./FIX_AADSTS500113_ERROR.md)
 
 ### Still Getting AADSTS650057?
 👉 Make sure you completed **Step 2** (Add API Permissions) and granted admin consent.

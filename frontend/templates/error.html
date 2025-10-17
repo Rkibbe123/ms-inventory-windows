@@ -3,24 +3,102 @@
 {% block title %}Error - Azure Resource Inventory{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center" style="margin-top: 5rem;">
-    <div class="col-md-6">
+<div class="row justify-content-center" style="margin-top: 3rem;">
+    <div class="col-md-8 col-lg-7">
         <div class="card">
-            <div class="card-body text-center p-5">
-                <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 4rem;"></i>
-                <h3 class="mt-4 mb-3">Authentication Error</h3>
-                <p class="text-muted">An error occurred during authentication.</p>
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 3rem;"></i>
+                    <h3 class="mt-3 mb-2">Authentication Error</h3>
+                </div>
                 
-                {% if error %}
-                <div class="alert alert-danger text-start mt-4">
-                    <strong>Error Details:</strong>
-                    <pre class="mb-0 mt-2">{{ error }}</pre>
+                {% if error and error.help_title %}
+                {# Special handling for known errors with helpful guidance #}
+                <div class="alert alert-danger">
+                    <h5 class="alert-heading">
+                        <i class="bi bi-exclamation-circle"></i> {{ error.help_title }}
+                    </h5>
+                    <p><strong>Error Code:</strong> {{ error.error_code }}</p>
+                    <p class="mb-0">{{ error.help_message }}</p>
+                </div>
+                
+                <div class="card bg-light mt-3">
+                    <div class="card-body">
+                        <h5 class="card-title">How to Fix:</h5>
+                        <ol class="mb-0">
+                            {% for step in error.fix_steps %}
+                            <li class="mb-2">{{ step | safe }}</li>
+                            {% endfor %}
+                        </ol>
+                    </div>
+                </div>
+                
+                {% if error.error_description %}
+                <details class="mt-3">
+                    <summary class="text-muted" style="cursor: pointer;">
+                        <small>Show technical details</small>
+                    </summary>
+                    <div class="alert alert-secondary mt-2 mb-0">
+                        <pre class="mb-0" style="white-space: pre-wrap; word-wrap: break-word; font-size: 0.85rem;">{{ error.error_description }}</pre>
+                    </div>
+                </details>
+                {% endif %}
+                
+                {% if error.doc_link %}
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-book"></i> 
+                    <strong>Need more help?</strong> 
+                    See the detailed guide: 
+                    <a href="https://github.com/Azure/AzureResourceInventory/blob/main/{{ error.doc_link }}" target="_blank" class="alert-link">
+                        {{ error.doc_link }}
+                    </a>
                 </div>
                 {% endif %}
                 
-                <a href="/login" class="btn btn-primary mt-4">
-                    <i class="bi bi-arrow-clockwise"></i> Try Again
-                </a>
+                {% elif error %}
+                {# Generic error display #}
+                <div class="alert alert-danger text-start">
+                    <strong>Error Details:</strong>
+                    {% if error is mapping %}
+                        {% if error.error %}
+                        <div class="mt-2"><strong>Error:</strong> {{ error.error }}</div>
+                        {% endif %}
+                        {% if error.error_description %}
+                        <div class="mt-2"><strong>Description:</strong> {{ error.error_description }}</div>
+                        {% endif %}
+                        {% if error.error_codes %}
+                        <div class="mt-2"><strong>Error Codes:</strong> {{ error.error_codes }}</div>
+                        {% endif %}
+                        {% if error.timestamp %}
+                        <div class="mt-2"><strong>Timestamp:</strong> {{ error.timestamp }}</div>
+                        {% endif %}
+                        {% if error.trace_id %}
+                        <div class="mt-2"><strong>Trace ID:</strong> {{ error.trace_id }}</div>
+                        {% endif %}
+                        {% if error.correlation_id %}
+                        <div class="mt-2"><strong>Correlation ID:</strong> {{ error.correlation_id }}</div>
+                        {% endif %}
+                    {% else %}
+                    <pre class="mb-0 mt-2" style="white-space: pre-wrap; word-wrap: break-word;">{{ error }}</pre>
+                    {% endif %}
+                </div>
+                
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-lightbulb"></i> 
+                    <strong>Common Issues:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Invalid client secret → See <a href="https://github.com/Azure/AzureResourceInventory/blob/main/FIX_AADSTS7000215_ERROR.md" target="_blank" class="alert-link">FIX_AADSTS7000215_ERROR.md</a></li>
+                        <li>Missing redirect URI → See <a href="https://github.com/Azure/AzureResourceInventory/blob/main/FIX_AADSTS500113_ERROR.md" target="_blank" class="alert-link">FIX_AADSTS500113_ERROR.md</a></li>
+                        <li>Missing API permissions → Run setup script or see <a href="https://github.com/Azure/AzureResourceInventory/blob/main/AZURE_AD_SETUP.md" target="_blank" class="alert-link">AZURE_AD_SETUP.md</a></li>
+                    </ul>
+                </div>
+                {% endif %}
+                
+                <div class="text-center mt-4">
+                    <a href="/login" class="btn btn-primary">
+                        <i class="bi bi-arrow-clockwise"></i> Try Again
+                    </a>
+                </div>
             </div>
         </div>
     </div>

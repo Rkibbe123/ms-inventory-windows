@@ -185,22 +185,54 @@ def authorized():
         else:
             cca = _build_msal_app(cache=cache)
         
-        result = cca.acquire_token_by_authorization_code(
-            request.args['code'],
-            scopes=SCOPE,
-            redirect_uri=url_for("authorized", _external=True)
-        )
+        try:
+            result = cca.acquire_token_by_authorization_code(
+                request.args['code'],
+                scopes=SCOPE,
+                redirect_uri=url_for("authorized", _external=True)
+            )
+            
+            if "error" in result:
+                # Check for specific Azure AD errors
+                error_description = result.get("error_description", "")
+                
+                # Handle AADSTS7000215: Invalid client secret error
+                if "AADSTS7000215" in error_description:
+                    logger.error(f"Invalid client secret error: {error_description}")
+                    error_data = {
+                        "error": "invalid_client_secret",
+                        "error_code": "AADSTS7000215",
+                        "error_description": error_description,
+                        "help_title": "Invalid Client Secret",
+                        "help_message": "You're using the Client Secret ID instead of the Client Secret Value.",
+                        "fix_steps": [
+                            f"Go to Azure Portal: <a href='https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Credentials/appId/{CLIENT_ID}' target='_blank'>Certificates & Secrets</a>",
+                            "Create a new client secret",
+                            "Copy the <strong>Value</strong> (not the Secret ID!)",
+                            "Update your <code>frontend/.env</code> file:<br><code>AZURE_CLIENT_SECRET=your-secret-value-here</code>",
+                            "Restart the application"
+                        ],
+                        "doc_link": "FIX_AADSTS7000215_ERROR.md"
+                    }
+                    return render_template("error.html", error=error_data)
+                
+                return render_template("error.html", error=result)
+            
+            session["user"] = result.get("id_token_claims")
+            session["token_cache"] = cache.serialize()
+            session["primary_tenant"] = tenant_id
+            
+            # Clear temporary login tenant
+            if "login_tenant" in session:
+                del session["login_tenant"]
         
-        if "error" in result:
-            return render_template("error.html", error=result)
-        
-        session["user"] = result.get("id_token_claims")
-        session["token_cache"] = cache.serialize()
-        session["primary_tenant"] = tenant_id
-        
-        # Clear temporary login tenant
-        if "login_tenant" in session:
-            del session["login_tenant"]
+        except Exception as e:
+            logger.error(f"Token acquisition error: {str(e)}")
+            error_data = {
+                "error": "token_acquisition_failed",
+                "error_description": str(e)
+            }
+            return render_template("error.html", error=error_data)
     
     return redirect(url_for("index"))
 

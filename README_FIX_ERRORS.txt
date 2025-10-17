@@ -6,8 +6,9 @@
 
 You encountered authentication errors. Here's how to fix them:
 
-ERROR 1: AADSTS500113 - No reply address registered
-ERROR 2: AADSTS650057 - Invalid resource
+ERROR 1: AADSTS7000215 - Invalid client secret
+ERROR 2: AADSTS500113 - No reply address registered
+ERROR 3: AADSTS650057 - Invalid resource
 
 ═══════════════════════════════════════════════════════════════
                     🔧 QUICK FIX (ONE COMMAND)
@@ -29,6 +30,7 @@ This automatically configures:
 ═══════════════════════════════════════════════════════════════
 
 Quick Start Guide:        QUICK_START_GUIDE.md
+Fix AADSTS7000215:        FIX_AADSTS7000215_ERROR.md  ⭐ NEW!
 Fix AADSTS500113:         FIX_AADSTS500113_ERROR.md
 Redirect URI Guide:       REDIRECT_URI_GUIDE.md
 Complete Setup:           AZURE_AD_SETUP.md

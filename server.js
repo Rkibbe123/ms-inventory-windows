@@ -219,6 +219,43 @@ app.get('/auth/redirect', async (req, res) => {
     res.redirect('/');
   } catch (err) {
     console.error('Auth redirect error:', err);
+    
+    // Check for specific Azure AD errors and provide helpful guidance
+    const errorMessage = err.message || String(err);
+    
+    if (errorMessage.includes('AADSTS7000215')) {
+      // Invalid client secret - using secret ID instead of secret value
+      const helpfulMessage = `
+        <h1>Authentication Error: Invalid Client Secret</h1>
+        <p><strong>Error Code:</strong> AADSTS7000215</p>
+        <p><strong>Problem:</strong> You're using the Client Secret <em>ID</em> instead of the Client Secret <em>Value</em>.</p>
+        
+        <h2>How to Fix:</h2>
+        <ol>
+          <li>Go to <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Credentials/appId/${clientId}" target="_blank">Azure Portal - Certificates & Secrets</a></li>
+          <li>Create a new client secret</li>
+          <li>Copy the <strong>Value</strong> (not the Secret ID!)</li>
+          <li>Update your <code>.env</code> file:
+            <pre>AZURE_CLIENT_SECRET=your-secret-value-here</pre>
+          </li>
+          <li>Restart this application</li>
+        </ol>
+        
+        <h3>Need More Help?</h3>
+        <p>See the detailed guide: <a href="https://github.com/Azure/AzureResourceInventory/blob/main/FIX_AADSTS7000215_ERROR.md" target="_blank">FIX_AADSTS7000215_ERROR.md</a></p>
+        
+        <h3>Common Mistakes:</h3>
+        <ul>
+          <li>❌ Using Secret ID (looks like a GUID): <code>12345678-1234-1234-1234-123456789abc</code></li>
+          <li>✅ Using Secret Value (random characters): <code>A1b~C2d3E4f5G6h7I8j9K0l...</code></li>
+        </ul>
+        
+        <p><a href="/">← Back to Login</a></p>
+      `;
+      return res.status(500).send(helpfulMessage);
+    }
+    
+    // Default error handling for other errors
     res.status(500).send(`Auth redirect error: ${err.message}`);
   }
 });

@@ -59,7 +59,7 @@ async function acquireArmTokenForTenant(req, tenantId) {
   const account = await getAccount(req);
   if (!account) throw new Error('No account in session');
   const authority = `https://login.microsoftonline.com/${tenantId}`;
-  const scopes = ['https://management.azure.com/.default', 'offline_access'];
+  const scopes = ['https://management.azure.com/user_impersonation', 'offline_access'];
   try {
     const result = await getCca().acquireTokenSilent({ account, authority, scopes });
     return result.accessToken;
@@ -150,10 +150,20 @@ app.get('/app', requireAuth, (req, res) => {
 app.get('/auth/login', async (req, res) => {
   try {
     const redirectUri = buildRedirectUri(req);
+    const requestedTenant = (req.query.tenant || '').toString().trim();
+    const authority = requestedTenant
+      ? `https://login.microsoftonline.com/${requestedTenant}`
+      : (process.env.AZURE_AUTHORITY || 'https://login.microsoftonline.com/organizations');
+
+    // Persist chosen tenant/authority for this session
+    req.session.selectedTenantId = requestedTenant || null;
+    req.session.loginAuthority = authority;
+
     const authCodeUrlParameters = {
-      scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'offline_access'],
+      scopes: ['openid', 'profile', 'offline_access', 'https://management.azure.com/user_impersonation'],
       redirectUri,
-      prompt: 'select_account'
+      prompt: 'select_account',
+      authority
     };
     const authCodeUrl = await getCca().getAuthCodeUrl(authCodeUrlParameters);
     res.redirect(authCodeUrl);
@@ -165,14 +175,20 @@ app.get('/auth/login', async (req, res) => {
 app.get('/auth/redirect', async (req, res) => {
   try {
     const redirectUri = buildRedirectUri(req);
+    const authority = req.session.loginAuthority || process.env.AZURE_AUTHORITY || 'https://login.microsoftonline.com/organizations';
     const tokenResponse = await getCca().acquireTokenByCode({
       code: req.query.code,
-      scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'email', 'offline_access'],
-      redirectUri
+      scopes: ['openid', 'profile', 'email', 'offline_access', 'https://management.azure.com/user_impersonation'],
+      redirectUri,
+      authority
     });
     const account = tokenResponse.account;
     req.session.homeAccountId = account.homeAccountId;
     req.session.username = account.username;
+    // If tenant not explicitly set, infer from account
+    if (!req.session.selectedTenantId && account && account.tenantId) {
+      req.session.selectedTenantId = account.tenantId;
+    }
     res.redirect('/app');
   } catch (err) {
     res.status(500).send(`Auth redirect error: ${err.message}`);
@@ -185,16 +201,21 @@ app.post('/auth/logout', (req, res) => {
 
 // API endpoints
 app.get('/api/me', requireAuth, async (req, res) => {
-  res.json({ username: req.session.username, homeAccountId: req.session.homeAccountId });
+  res.json({ 
+    username: req.session.username, 
+    homeAccountId: req.session.homeAccountId,
+    selectedTenantId: req.session.selectedTenantId || null
+  });
 });
 
 app.get('/api/tenants', requireAuth, async (req, res) => {
   try {
     const account = await getAccount(req);
+    const authority = req.session.loginAuthority || 'https://login.microsoftonline.com/organizations';
     const result = await getCca().acquireTokenSilent({ 
-      account, 
-      authority: 'https://login.microsoftonline.com/common', 
-      scopes: ['https://management.azure.com/.default'] 
+      account,
+      authority,
+      scopes: ['https://management.azure.com/user_impersonation'] 
     });
     const token = result.accessToken;
     const { data } = await axios.get('https://management.azure.com/tenants?api-version=2020-01-01', {

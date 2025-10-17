@@ -80,6 +80,11 @@
     <h1>🔍 Azure Resource Inventory</h1>
     <p>Comprehensive Azure resource documentation and network topology visualization</p>
     
+    <div class="form" style="margin-bottom:20px;text-align:left">
+      <label for="tenantInput" style="display:block;margin-bottom:8px;opacity:.9">Tenant (ID or domain)</label>
+      <input id="tenantInput" type="text" placeholder="e.g. contoso.onmicrosoft.com or 00000000-0000-0000-0000-000000000000" style="width:100%;padding:12px;border-radius:6px;border:none;outline:none" />
+      <div style="font-size:.9em;opacity:.85;margin-top:8px">Leave blank to use your home tenant</div>
+    </div>
     <button class="login-btn" id="loginBtn">Sign in with Microsoft</button>
     
     <div class="features">
@@ -92,7 +97,9 @@
 
   <script>
     document.getElementById('loginBtn').onclick = () => {
-      window.location = '/auth/login';
+      const tenant = (document.getElementById('tenantInput').value || '').trim();
+      const url = tenant ? `/auth/login?tenant=${encodeURIComponent(tenant)}` : '/auth/login';
+      window.location = url;
     };
   </script>
 </body>

@@ -191,6 +191,15 @@
         
         // Load tenants
         await loadTenants();
+        // Prefill tenant if known from session
+        if (me.selectedTenantId) {
+          const tenantSelect = document.getElementById('tenantSelect');
+          const option = [...tenantSelect.options].find(o => o.value === me.selectedTenantId);
+          if (option) {
+            tenantSelect.value = me.selectedTenantId;
+            await loadSubscriptions();
+          }
+        }
       } catch (err) {
         console.error('Init error:', err);
         window.location = '/';

@@ -149,11 +149,18 @@ app.get('/app', requireAuth, (req, res) => {
 // Azure AD OAuth endpoints
 app.get('/auth/login', async (req, res) => {
   try {
+    const tenantId = (req.query.tenantId || '').trim();
+    if (!tenantId) return res.status(400).send('tenantId_required');
+    req.session.selectedTenantId = tenantId;
+
     const redirectUri = buildRedirectUri(req);
+    const authority = `https://login.microsoftonline.com/${tenantId}`;
     const authCodeUrlParameters = {
-      scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'offline_access'],
+      scopes: ['openid', 'profile', 'email', 'offline_access'],
       redirectUri,
-      prompt: 'select_account'
+      prompt: 'select_account',
+      authority,
+      state: encodeURIComponent(JSON.stringify({ tenantId }))
     };
     const authCodeUrl = await getCca().getAuthCodeUrl(authCodeUrlParameters);
     res.redirect(authCodeUrl);
@@ -165,14 +172,21 @@ app.get('/auth/login', async (req, res) => {
 app.get('/auth/redirect', async (req, res) => {
   try {
     const redirectUri = buildRedirectUri(req);
+    let tenantId = req.session.selectedTenantId;
+    if (!tenantId && req.query.state) {
+      try { tenantId = JSON.parse(decodeURIComponent(req.query.state)).tenantId; } catch (_) {}
+    }
+    const authority = tenantId ? `https://login.microsoftonline.com/${tenantId}` : undefined;
     const tokenResponse = await getCca().acquireTokenByCode({
       code: req.query.code,
-      scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'email', 'offline_access'],
-      redirectUri
+      scopes: ['openid', 'profile', 'email', 'offline_access'],
+      redirectUri,
+      authority
     });
     const account = tokenResponse.account;
     req.session.homeAccountId = account.homeAccountId;
     req.session.username = account.username;
+    if (tenantId) req.session.selectedTenantId = tenantId;
     res.redirect('/app');
   } catch (err) {
     res.status(500).send(`Auth redirect error: ${err.message}`);
@@ -185,7 +199,7 @@ app.post('/auth/logout', (req, res) => {
 
 // API endpoints
 app.get('/api/me', requireAuth, async (req, res) => {
-  res.json({ username: req.session.username, homeAccountId: req.session.homeAccountId });
+  res.json({ username: req.session.username, homeAccountId: req.session.homeAccountId, tenantId: req.session.selectedTenantId });
 });
 
 app.get('/api/tenants', requireAuth, async (req, res) => {

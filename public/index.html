@@ -79,6 +79,11 @@
   <div class="container">
     <h1>🔍 Azure Resource Inventory</h1>
     <p>Comprehensive Azure resource documentation and network topology visualization</p>
+    <div style="text-align:left; margin-bottom:16px;">
+      <label for="tenantInput" style="display:block; margin-bottom:8px; font-weight:600;">Tenant</label>
+      <input id="tenantInput" type="text" placeholder="contoso.onmicrosoft.com or Tenant GUID" style="width:100%; padding:12px; border:none; border-radius:6px;" />
+      <div style="font-size:0.9em; opacity:0.85; margin-top:8px;">Sign in will use the specified tenant.</div>
+    </div>
     
     <button class="login-btn" id="loginBtn">Sign in with Microsoft</button>
     
@@ -92,7 +97,13 @@
 
   <script>
     document.getElementById('loginBtn').onclick = () => {
-      window.location = '/auth/login';
+      const tenant = (document.getElementById('tenantInput').value || '').trim();
+      if (!tenant) {
+        alert('Please enter a tenant (domain or tenant GUID)');
+        return;
+      }
+      const url = `/auth/login?tenantId=${encodeURIComponent(tenant)}`;
+      window.location = url;
     };
   </script>
 </body>

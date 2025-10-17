@@ -139,7 +139,7 @@
       <div class="form-group">
         <label for="tenantSelect">Tenant</label>
         <select id="tenantSelect">
-          <option value="">Loading tenants...</option>
+          <option value="">Loading...</option>
         </select>
       </div>
 
@@ -188,9 +188,18 @@
         // Get user info
         const me = await fetchJSON('/api/me');
         document.getElementById('userName').textContent = me.username || 'User';
-        
-        // Load tenants
-        await loadTenants();
+        // Prefill tenant from session if present; otherwise load list
+        if (me.tenantId) {
+          const tenantSelect = document.getElementById('tenantSelect');
+          tenantSelect.innerHTML = '';
+          const opt = document.createElement('option');
+          opt.value = me.tenantId;
+          opt.textContent = me.tenantId;
+          tenantSelect.appendChild(opt);
+          await loadSubscriptions();
+        } else {
+          await loadTenants();
+        }
       } catch (err) {
         console.error('Init error:', err);
         window.location = '/';

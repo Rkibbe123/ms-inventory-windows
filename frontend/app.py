@@ -27,6 +27,8 @@ CLIENT_SECRET = os.environ.get('AZURE_CLIENT_SECRET')
 TENANT_ID = os.environ.get('AZURE_TENANT_ID', 'common')
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 REDIRECT_PATH = "/getAToken"
+# Optional explicit override for redirect URI (useful behind proxies/production)
+FLASK_REDIRECT_URI = os.environ.get('FLASK_REDIRECT_URI')
 SCOPE = ["https://management.azure.com/.default"]
 
 # Azure Storage Configuration
@@ -54,7 +56,7 @@ def _build_auth_url(authority=None, scopes=None, state=None):
     return _build_msal_app(authority=authority).get_authorization_request_url(
         scopes or [],
         state=state or str(uuid.uuid4()),
-        redirect_uri=url_for("authorized", _external=True)
+        redirect_uri=(FLASK_REDIRECT_URI or url_for("authorized", _external=True))
     )
 
 
@@ -188,7 +190,7 @@ def authorized():
         result = cca.acquire_token_by_authorization_code(
             request.args['code'],
             scopes=SCOPE,
-            redirect_uri=url_for("authorized", _external=True)
+            redirect_uri=(FLASK_REDIRECT_URI or url_for("authorized", _external=True))
         )
         
         if "error" in result:

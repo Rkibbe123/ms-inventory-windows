@@ -248,6 +248,7 @@
     at C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\index.js:284:15
     at Function.process_params (C:\git-personal\ms-inventory-windows\node_modules\express\lib\router\index.js:346:12)
 [2025-10-16T18:19:31.907Z] Process exit with code 1
+<<<<<<< HEAD
 [2025-10-16T18:37:10.349Z] App startup
 [2025-10-16T18:37:10.372Z] Server listening on port 3000
 [2025-10-16T18:37:38.996Z] GET /api/tenants called
@@ -294,3 +295,5 @@
 [2025-10-16T22:15:22.173Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
 [2025-10-16T22:15:35.276Z] GET /api/tenants called
 [2025-10-16T22:15:35.277Z] Error in /api/tenants: missing_tenant_id_error: A tenant id - not common, organizations, or consumers - must be specified when using the client_credentials flow.
+=======
+>>>>>>> 78d29a14612abd0bb62416a880d0a7212d977d32

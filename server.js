@@ -213,18 +213,10 @@ app.get('/auth/redirect', async (req, res) => {
       scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'offline_access'],
       redirectUri
     });
-    // Debug: log the full token response
-    console.log('[DEBUG] Token response from acquireTokenByCode:', JSON.stringify(tokenResponse, null, 2));
-  const account = tokenResponse.account;
-  req.session.homeAccountId = account.homeAccountId;
-  req.session.username = account.username;
-  req.session.primaryTenant = tenantId;
-  req.session.account = account;
-    
-    // Clear the temporary login tenant
-    delete req.session.loginTenant;
-    
-    res.redirect('/app');
+    const account = tokenResponse.account;
+    req.session.homeAccountId = account.homeAccountId;
+    req.session.username = account.username;
+    res.redirect('/');
   } catch (err) {
     console.error('Auth redirect error:', err);
     res.status(500).send(`Auth redirect error: ${err.message}`);
@@ -242,33 +234,15 @@ app.get('/api/me', requireAuth, async (req, res) => {
 
 app.get('/api/tenants', requireAuth, async (req, res) => {
   try {
-    // Debug: log session and incoming tenantId
-    console.log('[DEBUG] /api/tenants called');
-    console.log('[DEBUG] req.session:', JSON.stringify(req.session));
-    let tenantId = req.query.tenantId || req.session.primaryTenant;
-    console.log('[DEBUG] Using tenantId:', tenantId);
+    // Use common authority token to list tenants
     const account = await getAccount(req);
-    if (!account) {
-      console.log('[DEBUG] No account found in session');
-    }
-    const authority = tenantId ? `https://login.microsoftonline.com/${tenantId}` : 'https://login.microsoftonline.com/common';
-    try {
-      const result = await getCca().acquireTokenSilent({ 
-        account, 
-        authority,
-        scopes: ['https://management.azure.com/.default'] 
-      });
-      const token = result.accessToken;
-      const { data } = await axios.get('https://management.azure.com/tenants?api-version=2020-01-01', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const tenants = (data.value || []).map((t) => ({ tenantId: t.tenantId, displayName: t.displayName || t.tenantId }));
-      console.log('[DEBUG] Tenants loaded:', tenants);
-      res.json({ tenants });
-    } catch (tokenErr) {
-      console.log('[DEBUG] Token or API error:', tokenErr);
-      res.status(500).json({ error: tokenErr.message });
-    }
+    const result = await getCca().acquireTokenSilent({ account, authority: 'https://login.microsoftonline.com/common', scopes: ['https://management.azure.com/.default'] });
+    const token = result.accessToken;
+    const { data } = await axios.get('https://management.azure.com/tenants?api-version=2020-01-01', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const tenants = (data.value || []).map((t) => ({ tenantId: t.tenantId, displayName: t.displayName || t.tenantId }));
+    res.json({ tenants });
   } catch (err) {
     console.log('[DEBUG] General error in /api/tenants:', err);
     res.status(500).json({ error: err.message });

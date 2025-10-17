@@ -24,6 +24,7 @@
       backdrop-filter: blur(10px);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
       max-width: 500px;
+      width: 100%;
     }
     h1 {
       font-size: 2.5em;
@@ -34,6 +35,30 @@
       font-size: 1.1em;
       margin-bottom: 30px;
       opacity: 0.9;
+    }
+    .form-group {
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      font-size: 0.95em;
+    }
+    select, input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 6px;
+      font-size: 1em;
+      background: rgba(255, 255, 255, 0.9);
+      color: #333;
+    }
+    select:focus, input:focus {
+      outline: none;
+      border-color: white;
+      background: white;
     }
     .login-btn {
       background: white;
@@ -46,10 +71,15 @@
       cursor: pointer;
       transition: all 0.3s ease;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      width: 100%;
     }
-    .login-btn:hover {
+    .login-btn:hover:not(:disabled) {
       transform: translateY(-2px);
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    }
+    .login-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
     .features {
       margin-top: 40px;
@@ -73,12 +103,44 @@
       margin-right: 12px;
       font-weight: bold;
     }
+    .error-message {
+      background: rgba(244, 67, 54, 0.2);
+      border: 1px solid rgba(244, 67, 54, 0.5);
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-size: 0.9em;
+    }
+    .info-message {
+      background: rgba(255, 255, 255, 0.15);
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      font-size: 0.9em;
+      text-align: left;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>🔍 Azure Resource Inventory</h1>
     <p>Comprehensive Azure resource documentation and network topology visualization</p>
+    
+    <div id="errorMessage" class="error-message" style="display: none;"></div>
+    
+    <div class="form-group">
+      <label for="tenantInput">Tenant ID (required)</label>
+      <input 
+        type="text" 
+        id="tenantInput" 
+        placeholder="Enter your Azure Tenant ID or use 'common'"
+        value="common"
+      />
+    </div>
+    
+    <div class="info-message">
+      <strong>Note:</strong> Enter your specific Tenant ID for single-tenant access, or use "common" to authenticate across multiple tenants. You can select specific tenants after signing in.
+    </div>
     
     <button class="login-btn" id="loginBtn">Sign in with Microsoft</button>
     
@@ -91,9 +153,43 @@
   </div>
 
   <script>
+    function showError(message) {
+      const errorDiv = document.getElementById('errorMessage');
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+    }
+    
+    function hideError() {
+      document.getElementById('errorMessage').style.display = 'none';
+    }
+    
     document.getElementById('loginBtn').onclick = () => {
-      window.location = '/auth/login';
+      hideError();
+      const tenantId = document.getElementById('tenantInput').value.trim();
+      
+      if (!tenantId) {
+        showError('Please enter a Tenant ID or use "common"');
+        return;
+      }
+      
+      // Validate tenant ID format (GUID or 'common', 'organizations', 'consumers')
+      const validTenantPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const validKeywords = ['common', 'organizations', 'consumers'];
+      
+      if (!validTenantPattern.test(tenantId) && !validKeywords.includes(tenantId.toLowerCase())) {
+        showError('Please enter a valid Tenant ID (GUID format) or use "common", "organizations", or "consumers"');
+        return;
+      }
+      
+      window.location = `/auth/login?tenant=${encodeURIComponent(tenantId)}`;
     };
+    
+    // Allow Enter key to submit
+    document.getElementById('tenantInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('loginBtn').click();
+      }
+    });
   </script>
 </body>
 </html>

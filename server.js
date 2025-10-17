@@ -149,13 +149,37 @@ app.get('/app', requireAuth, (req, res) => {
 // Azure AD OAuth endpoints
 app.get('/auth/login', async (req, res) => {
   try {
+    const tenantId = req.query.tenant;
+    if (!tenantId) {
+      return res.status(400).send('Tenant ID is required. Please go back and enter your tenant ID.');
+    }
+    
+    // Store tenant in session for redirect
+    req.session.loginTenant = tenantId;
+    
+    // Build CCA with specific tenant
+    const clientId = process.env.AZURE_CLIENT_ID;
+    const clientSecret = process.env.AZURE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new Error('AZURE_CLIENT_ID and AZURE_CLIENT_SECRET must be configured');
+    }
+    
+    const tenantCca = new msal.ConfidentialClientApplication({
+      auth: {
+        clientId,
+        authority: `https://login.microsoftonline.com/${tenantId}`,
+        clientSecret
+      },
+      system: { loggerOptions: { loggerCallback: () => {} } }
+    });
+    
     const redirectUri = buildRedirectUri(req);
     const authCodeUrlParameters = {
       scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'offline_access'],
       redirectUri,
       prompt: 'select_account'
     };
-    const authCodeUrl = await getCca().getAuthCodeUrl(authCodeUrlParameters);
+    const authCodeUrl = await tenantCca.getAuthCodeUrl(authCodeUrlParameters);
     res.redirect(authCodeUrl);
   } catch (err) {
     res.status(500).send(`Login error: ${err.message}`);
@@ -164,8 +188,26 @@ app.get('/auth/login', async (req, res) => {
 
 app.get('/auth/redirect', async (req, res) => {
   try {
+    const tenantId = req.session.loginTenant;
+    if (!tenantId) {
+      return res.status(400).send('Session expired. Please login again.');
+    }
+    
+    // Build CCA with the same tenant used for login
+    const clientId = process.env.AZURE_CLIENT_ID;
+    const clientSecret = process.env.AZURE_CLIENT_SECRET;
+    
+    const tenantCca = new msal.ConfidentialClientApplication({
+      auth: {
+        clientId,
+        authority: `https://login.microsoftonline.com/${tenantId}`,
+        clientSecret
+      },
+      system: { loggerOptions: { loggerCallback: () => {} } }
+    });
+    
     const redirectUri = buildRedirectUri(req);
-    const tokenResponse = await getCca().acquireTokenByCode({
+    const tokenResponse = await tenantCca.acquireTokenByCode({
       code: req.query.code,
       scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'email', 'offline_access'],
       redirectUri
@@ -173,8 +215,14 @@ app.get('/auth/redirect', async (req, res) => {
     const account = tokenResponse.account;
     req.session.homeAccountId = account.homeAccountId;
     req.session.username = account.username;
+    req.session.primaryTenant = tenantId;
+    
+    // Clear the temporary login tenant
+    delete req.session.loginTenant;
+    
     res.redirect('/app');
   } catch (err) {
+    console.error('Auth redirect error:', err);
     res.status(500).send(`Auth redirect error: ${err.message}`);
   }
 });

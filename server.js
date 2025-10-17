@@ -21,6 +21,68 @@ if (!fs.existsSync(OUTPUTS_DIR)) {
 
 // MSAL Configuration for OAuth
 let cca = null;
+
+function looksLikeSecretId(secret) {
+  if (!secret || typeof secret !== 'string') return false;
+  const guidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+  const trimmed = secret.trim();
+  const looksLikeGuid = guidRegex.test(trimmed);
+  const suspiciouslyShort = trimmed.length <= 36; // Secret values are typically longer than a GUID
+  return looksLikeGuid || suspiciouslyShort;
+}
+
+function logSuspiciousSecretWarning(clientSecret) {
+  if (looksLikeSecretId(clientSecret)) {
+    console.warn('[WARN] AZURE_CLIENT_SECRET looks like a Secret ID (GUID) or is very short.');
+    console.warn('       Use the client secret VALUE, not the Secret ID.');
+    console.warn('       Azure Portal → App registrations → Your App → Certificates & secrets → copy the Value column.');
+  }
+}
+
+function isInvalidClientSecretError(err) {
+  const message = (err && (err.errorMessage || err.message || '')) || '';
+  return /AADSTS7000215/i.test(message) || (/invalid_client/i.test(message) && /secret/i.test(message));
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderInvalidClientSecretHelp(err) {
+  const appId = process.env.AZURE_CLIENT_ID || 'your-app-id';
+  const portalAuthLink = `https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Authentication/appId/${appId}`;
+  const portalSecretsLink = `https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/Credentials/appId/${appId}`;
+  const details = (err && (err.errorMessage || err.message)) || '';
+  return (
+    '<!doctype html>' +
+    '<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>Invalid client secret</title>' +
+    '<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;max-width:900px;margin:40px auto;padding:0 16px;color:#222} code,pre{background:#f6f8fa;padding:2px 6px;border-radius:4px} .card{border:1px solid #e5e7eb;border-radius:8px;padding:24px} .hint{background:#fff8f0;border:1px solid #fde3c5;padding:12px;border-radius:6px} a{color:#2563eb;text-decoration:none} a:hover{text-decoration:underline}</style>' +
+    '</head><body>' +
+    '<h1>Azure AD configuration error: Invalid client secret</h1>' +
+    '<p>The client secret configured for this app is invalid. This commonly happens when the <strong>Secret ID</strong> (a GUID) is used instead of the <strong>secret value</strong>.</p>' +
+    '<div class="card">' +
+    '<h3>How to fix</h3>' +
+    '<ol>' +
+    '<li>Open Azure Portal → Azure Active Directory → App registrations → your app.</li>' +
+    `<li>Go to <a target="_blank" rel="noopener" href="${portalSecretsLink}">Certificates & secrets</a> and create a new client secret if needed.</li>` +
+    '<li>Copy the <strong>Value</strong> (not the Secret ID) of the secret.</li>' +
+    '<li>Set environment variable <code>AZURE_CLIENT_SECRET</code> to that value and restart the app.</li>' +
+    '</ol>' +
+    `<p>Double‑check <a target="_blank" rel="noopener" href="${portalAuthLink}">Authentication settings</a> are correct as well.</p>` +
+    '<div class="hint"><strong>Tip:</strong> Secret values are typically long strings and may contain <code>~</code>. Secret IDs look like GUIDs (e.g., <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>).</div>' +
+    (details ? `<h3 style="margin-top:24px">Original error</h3><pre>${escapeHtml(details)}</pre>` : '') +
+    '<p style="margin-top:24px"><a href="/auth/login">Try again</a></p>' +
+    '</div>' +
+    '</body></html>'
+  );
+}
+
 function getCca() {
   if (cca) return cca;
   const clientId = process.env.AZURE_CLIENT_ID;
@@ -28,6 +90,7 @@ function getCca() {
   if (!clientId || !clientSecret) {
     throw new Error('AZURE_CLIENT_ID and AZURE_CLIENT_SECRET must be configured');
   }
+  logSuspiciousSecretWarning(clientSecret);
   const msalConfig = {
     auth: {
       clientId,
@@ -218,8 +281,11 @@ app.get('/auth/redirect', async (req, res) => {
     req.session.username = account.username;
     res.redirect('/');
   } catch (err) {
+    if (isInvalidClientSecretError(err)) {
+      return res.status(400).send(renderInvalidClientSecretHelp(err));
+    }
     console.error('Auth redirect error:', err);
-    res.status(500).send(`Auth redirect error: ${err.message}`);
+    res.status(500).send(`Auth redirect error: ${err && err.message ? err.message : 'Unknown error'}`);
   }
 });
 
@@ -338,4 +404,9 @@ app.get('/api/jobs/:id/log', requireAuth, (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
+  // Startup sanity warning for likely Secret ID misuse
+  try {
+    const secret = process.env.AZURE_CLIENT_SECRET || '';
+    logSuspiciousSecretWarning(secret);
+  } catch (_) {}
 });

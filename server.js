@@ -157,29 +157,14 @@ app.get('/auth/login', async (req, res) => {
     // Store tenant in session for redirect
     req.session.loginTenant = tenantId;
     
-    // Build CCA with specific tenant
-    const clientId = process.env.AZURE_CLIENT_ID;
-    const clientSecret = process.env.AZURE_CLIENT_SECRET;
-    if (!clientId || !clientSecret) {
-      throw new Error('AZURE_CLIENT_ID and AZURE_CLIENT_SECRET must be configured');
-    }
-    
-    const tenantCca = new msal.ConfidentialClientApplication({
-      auth: {
-        clientId,
-        authority: `https://login.microsoftonline.com/${tenantId}`,
-        clientSecret
-      },
-      system: { loggerOptions: { loggerCallback: () => {} } }
-    });
-    
     const redirectUri = buildRedirectUri(req);
     const authCodeUrlParameters = {
       scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'offline_access'],
       redirectUri,
-      prompt: 'select_account'
+      prompt: 'select_account',
+      authority: `https://login.microsoftonline.com/${tenantId}`
     };
-    const authCodeUrl = await tenantCca.getAuthCodeUrl(authCodeUrlParameters);
+    const authCodeUrl = await getCca().getAuthCodeUrl(authCodeUrlParameters);
     res.redirect(authCodeUrl);
   } catch (err) {
     res.status(500).send(`Login error: ${err.message}`);
@@ -193,24 +178,12 @@ app.get('/auth/redirect', async (req, res) => {
       return res.status(400).send('Session expired. Please login again.');
     }
     
-    // Build CCA with the same tenant used for login
-    const clientId = process.env.AZURE_CLIENT_ID;
-    const clientSecret = process.env.AZURE_CLIENT_SECRET;
-    
-    const tenantCca = new msal.ConfidentialClientApplication({
-      auth: {
-        clientId,
-        authority: `https://login.microsoftonline.com/${tenantId}`,
-        clientSecret
-      },
-      system: { loggerOptions: { loggerCallback: () => {} } }
-    });
-    
     const redirectUri = buildRedirectUri(req);
-    const tokenResponse = await tenantCca.acquireTokenByCode({
+    const tokenResponse = await getCca().acquireTokenByCode({
       code: req.query.code,
       scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'email', 'offline_access'],
-      redirectUri
+      redirectUri,
+      authority: `https://login.microsoftonline.com/${tenantId}`
     });
     const account = tokenResponse.account;
     req.session.homeAccountId = account.homeAccountId;
@@ -239,10 +212,14 @@ app.get('/api/me', requireAuth, async (req, res) => {
 app.get('/api/tenants', requireAuth, async (req, res) => {
   try {
     const account = await getAccount(req);
-    const result = await getCca().acquireTokenSilent({ 
-      account, 
-      authority: 'https://login.microsoftonline.com/common', 
-      scopes: ['https://management.azure.com/.default'] 
+    if (!account) {
+      return res.status(401).json({ error: 'reauth_required' });
+    }
+    const authority = `https://login.microsoftonline.com/${req.session.primaryTenant || 'common'}`;
+    const result = await getCca().acquireTokenSilent({
+      account,
+      authority,
+      scopes: ['https://management.azure.com/.default']
     });
     const token = result.accessToken;
     const { data } = await axios.get('https://management.azure.com/tenants?api-version=2020-01-01', {
@@ -251,6 +228,9 @@ app.get('/api/tenants', requireAuth, async (req, res) => {
     const tenants = (data.value || []).map((t) => ({ tenantId: t.tenantId, displayName: t.displayName || t.tenantId }));
     res.json({ tenants });
   } catch (err) {
+    if (err && (err.name === 'InteractionRequiredAuthError' || err.errorCode === 'no_tokens_found')) {
+      return res.status(401).json({ error: 'reauth_required' });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -266,6 +246,9 @@ app.get('/api/subscriptions', requireAuth, async (req, res) => {
     const subs = (data.value || []).map((s) => ({ subscriptionId: s.subscriptionId, displayName: s.displayName, state: s.state }));
     res.json({ subscriptions: subs });
   } catch (err) {
+    if (err && (err.name === 'InteractionRequiredAuthError' || err.errorCode === 'no_tokens_found')) {
+      return res.status(401).json({ error: 'reauth_required' });
+    }
     res.status(500).json({ error: err.message });
   }
 });

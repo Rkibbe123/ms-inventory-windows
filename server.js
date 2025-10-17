@@ -209,6 +209,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Routes
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 app.get('/app', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'app.html'));
@@ -268,24 +269,18 @@ app.get('/auth/redirect', async (req, res) => {
     res.status(500).send(`Auth redirect error: ${err && err.message ? err.message : 'Unknown error'}`);
   }
 });
-});
 
+// Jobs status endpoint
 app.get('/api/jobs/:id/status', requireAuth, (req, res) => {
   const job = jobs.get(req.params.id);
   if (!job) return res.status(404).json({ error: 'job_not_found' });
   const files = fs.existsSync(job.outputDir)
-    ? fs.readdirSync(job.outputDir).filter((n) => fs.statSync(path.join(job.outputDir, n)).isFile())
+    ? fs.readdirSync(job.outputDir).filter((name) => fs.statSync(path.join(job.outputDir, name)).isFile())
     : [];
-  try {
-    console.log('[DEBUG] /auth/redirect hit');
-    console.log('[DEBUG] Query params:', req.query);
-    console.log('[DEBUG] Session before token:', req.session);
-    const tenantId = req.session.loginTenant;
-    if (!tenantId) {
-      console.log('[DEBUG] No tenantId in session.');
-      return res.status(400).send('Session expired. Please login again.');
-    }
-    // Build CCA with the same tenant used for login
-    const clientId = process.env.AZURE_CLIENT_ID;
-    const clientSecret = process.env.AZURE_CLIENT_SECRET;
-    // ...existing code...
+  return res.json({ id: req.params.id, status: job.status || 'unknown', files });
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT} (${NODE_ENV})`);
+});

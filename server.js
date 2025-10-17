@@ -135,7 +135,10 @@ async function acquireArmTokenForTenant(req, tenantId) {
 
 // Auth middleware
 function requireAuth(req, res, next) {
+  // Debug: log session state
+  console.log('[DEBUG] Session:', req.session);
   if (!req.session || !req.session.homeAccountId) {
+    console.log('[DEBUG] Not authenticated, redirecting to login.');
     return res.status(401).json({ error: 'not_authenticated' });
   }
   next();
@@ -194,7 +197,7 @@ app.use(
     secret: process.env.SESSION_SECRET || 'dev-insecure-secret',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: NODE_ENV === 'production', maxAge: 24 * 60 * 60 * 1000 }
+    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
   })
 );
 
@@ -265,40 +268,45 @@ app.get('/auth/redirect', async (req, res) => {
       auth: {
         clientId,
         authority: `https://login.microsoftonline.com/${tenantId}`,
-        clientSecret
-      },
-      system: { loggerOptions: { loggerCallback: () => {} } }
-    });
-    
-    const redirectUri = buildRedirectUri(req);
-    const tokenResponse = await tenantCca.acquireTokenByCode({
-      code: req.query.code,
-      scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'offline_access'],
-      redirectUri
-    });
-    const account = tokenResponse.account;
-    req.session.homeAccountId = account.homeAccountId;
-    req.session.username = account.username;
-    res.redirect('/');
-  } catch (err) {
-    if (isInvalidClientSecretError(err)) {
-      return res.status(400).send(renderInvalidClientSecretHelp(err));
-    }
-    console.error('Auth redirect error:', err);
-    res.status(500).send(`Auth redirect error: ${err && err.message ? err.message : 'Unknown error'}`);
-  }
-});
-
-app.post('/auth/logout', (req, res) => {
-  req.session.destroy(() => res.json({ ok: true }));
-});
-
-// API endpoints
-app.get('/api/me', requireAuth, async (req, res) => {
-  res.json({ username: req.session.username, homeAccountId: req.session.homeAccountId });
-});
-
-app.get('/api/tenants', requireAuth, async (req, res) => {
+        try {
+          console.log('[DEBUG] /auth/redirect hit');
+          console.log('[DEBUG] Query params:', req.query);
+          console.log('[DEBUG] Session before token:', req.session);
+          const tenantId = req.session.loginTenant;
+          if (!tenantId) {
+            console.log('[DEBUG] No tenantId in session.');
+            return res.status(400).send('Session expired. Please login again.');
+          }
+          // Build CCA with the same tenant used for login
+          const clientId = process.env.AZURE_CLIENT_ID;
+          const clientSecret = process.env.AZURE_CLIENT_SECRET;
+          const tenantCca = new msal.ConfidentialClientApplication({
+            auth: {
+              clientId,
+              authority: `https://login.microsoftonline.com/${tenantId}`,
+              clientSecret
+            },
+            system: { loggerOptions: { loggerCallback: () => {} } }
+          });
+          const redirectUri = buildRedirectUri(req);
+          const tokenResponse = await tenantCca.acquireTokenByCode({
+            code: req.query.code,
+            scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'offline_access'],
+            redirectUri
+          });
+          const account = tokenResponse.account;
+          req.session.homeAccountId = account.homeAccountId;
+          req.session.username = account.username;
+          console.log('[DEBUG] Session after token:', req.session);
+          res.redirect('/');
+        } catch (err) {
+          if (isInvalidClientSecretError(err)) {
+            return res.status(400).send(renderInvalidClientSecretHelp(err));
+          }
+          console.error('Auth redirect error:', err);
+          res.status(500).send(`Auth redirect error: ${err && err.message ? err.message : 'Unknown error'}`);
+        }
+      });
   try {
     // Use common authority token to list tenants
     const account = await getAccount(req);

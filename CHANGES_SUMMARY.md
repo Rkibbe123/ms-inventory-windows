@@ -6,7 +6,14 @@ Fixed the Azure AD authentication error (AADSTS650057) and implemented tenant se
 
 ## Problem Statement
 
-**Error Encountered:**
+**Errors Encountered:**
+
+1. **AADSTS500113: No reply address is registered**
+```
+AADSTS500113: No reply address is registered for the application.
+```
+
+2. **AADSTS650057: Invalid resource**
 ```
 AADSTS650057: Invalid resource. The client has requested access to a resource which is not listed 
 in the requested permissions in the client's application registration.
@@ -15,9 +22,10 @@ Resource value from request: https://management.azure.com
 ```
 
 **Root Causes:**
-1. Azure AD app registration missing API permissions for Azure Resource Manager
-2. Authentication flow using "common" authority instead of specific tenant
-3. Tenant selection happening after authentication instead of before
+1. Redirect URIs (reply URLs) not registered in Azure AD app
+2. Azure AD app registration missing API permissions for Azure Resource Manager
+3. Authentication flow using "common" authority instead of specific tenant
+4. Tenant selection happening after authentication instead of before
 
 ## Changes Made
 
@@ -108,20 +116,41 @@ Summary of all changes made
 
 ### 6. Helper Scripts
 
-#### `add-api-permissions.ps1` (PowerShell)
+#### `setup-azure-ad.ps1` / `setup-azure-ad.sh`
+**Complete setup script (recommended):**
+- Configures both redirect URIs and API permissions
+- One command to set up everything
+- PowerShell and Bash versions
+
+#### `add-redirect-uris.ps1` / `add-redirect-uris.sh`
+Automated script to add redirect URIs:
+- Adds common development URIs (localhost:3000, localhost:8000)
+- Optional production URL support
+- Uses Azure CLI
+- Verification steps
+
+#### `add-api-permissions.ps1` / `add-api-permissions.sh`
 Automated script to add required API permissions:
 - Uses Azure CLI
 - Adds Azure Service Management permission
 - Optional admin consent grant
 - Verification steps
 
-#### `add-api-permissions.sh` (Bash)
-Linux/macOS version of the permission script:
-- Same functionality as PowerShell version
-- Color-coded output
-- Error handling
+## Required Configuration
 
-## Required API Permissions
+### 1. Redirect URIs (Reply URLs)
+
+Your Azure AD app registration MUST have these redirect URIs configured:
+
+**Development:**
+- `http://localhost:3000/auth/redirect` (Node.js Express)
+- `http://localhost:8000/getAToken` (Flask)
+
+**Production:**
+- `https://your-domain.com/auth/redirect`
+- `https://your-domain.com/getAToken`
+
+### 2. API Permissions
 
 Your Azure AD app registration MUST have:
 
@@ -130,33 +159,47 @@ Your Azure AD app registration MUST have:
 - **Permission:** `user_impersonation` (Delegated)
 - **Permission ID:** `41094075-9dad-400e-a0bd-54e686782033`
 
-## How to Add API Permissions
+## How to Configure Azure AD App
 
-### Quick Method (Recommended)
+### Complete Setup - One Command! (Recommended)
 
 **PowerShell (Windows):**
 ```powershell
-.\add-api-permissions.ps1 -GrantAdminConsent
+.\setup-azure-ad.ps1
+# Or for production:
+.\setup-azure-ad.ps1 -ProductionUrl "https://your-app.azurewebsites.net"
 ```
 
 **Bash (Linux/macOS):**
 ```bash
-./add-api-permissions.sh --grant-consent
+./setup-azure-ad.sh
+# Or for production:
+./setup-azure-ad.sh "" "https://your-app.azurewebsites.net"
 ```
 
-### Manual Method
+This configures both redirect URIs and API permissions!
 
+### Manual Configuration
+
+#### Step 1: Add Redirect URIs
 1. Go to [Azure Portal](https://portal.azure.com)
 2. Navigate to **Azure Active Directory** → **App registrations**
 3. Search for App ID: `9795693b-67cd-4165-b8a0-793833081db6`
-4. Click on **API permissions**
-5. Click **+ Add a permission**
-6. Select **Azure Service Management**
-7. Check **user_impersonation** under Delegated permissions
-8. Click **Add permissions**
-9. Click **Grant admin consent for [Your Organization]**
+4. Click on **Authentication**
+5. Add these redirect URIs under **Web** platform:
+   - `http://localhost:3000/auth/redirect`
+   - `http://localhost:8000/getAToken`
+6. Click **Save**
 
-See `AZURE_AD_SETUP.md` for detailed instructions.
+#### Step 2: Add API Permissions
+1. In the same app registration, click **API permissions**
+2. Click **+ Add a permission**
+3. Select **Azure Service Management**
+4. Check **user_impersonation** under Delegated permissions
+5. Click **Add permissions**
+6. Click **Grant admin consent for [Your Organization]**
+
+See `AZURE_AD_SETUP.md` and `REDIRECT_URI_GUIDE.md` for detailed instructions.
 
 ## Testing the Changes
 
@@ -233,20 +276,28 @@ After authentication:
 - `.env` - Configuration updates
 
 ### Documentation Files (New)
-- `AZURE_AD_SETUP.md` - API permissions setup guide
+- `AZURE_AD_SETUP.md` - Complete setup guide (redirect URIs + API permissions)
+- `REDIRECT_URI_GUIDE.md` - Redirect URI configuration guide
 - `README_AUTHENTICATION.md` - User authentication guide
 - `CHANGES_SUMMARY.md` - This file
+- `QUICK_START_GUIDE.md` - Quick reference guide
 
 ### Helper Scripts (New)
-- `add-api-permissions.ps1` - PowerShell permission script
-- `add-api-permissions.sh` - Bash permission script
+- `setup-azure-ad.ps1` / `setup-azure-ad.sh` - **Complete setup (recommended)**
+- `add-redirect-uris.ps1` / `add-redirect-uris.sh` - Redirect URI configuration
+- `add-api-permissions.ps1` / `add-api-permissions.sh` - API permissions configuration
 
 ## Next Steps
 
 ### For Administrators
 
-1. ✅ **Add API Permissions** (Required)
+1. ✅ **Configure Azure AD App** (Required)
    ```powershell
+   # Complete setup (recommended)
+   .\setup-azure-ad.ps1
+   
+   # Or configure separately:
+   .\add-redirect-uris.ps1
    .\add-api-permissions.ps1 -GrantAdminConsent
    ```
 
@@ -284,8 +335,11 @@ After authentication:
 
 ## Troubleshooting
 
-### Error: "Invalid resource" persists
-**Solution:** Make sure API permissions are added and admin consent is granted.
+### Error: AADSTS500113 - No reply address registered
+**Solution:** Add redirect URIs to your app registration. Run `.\setup-azure-ad.ps1` or `.\add-redirect-uris.ps1`
+
+### Error: AADSTS650057 - Invalid resource
+**Solution:** Make sure API permissions are added and admin consent is granted. Run `.\setup-azure-ad.ps1` or `.\add-api-permissions.ps1 -GrantAdminConsent`
 
 ### Error: "Tenant ID is required"
 **Solution:** The login page now requires tenant ID. Enter it before clicking sign in.
@@ -298,18 +352,22 @@ After authentication:
 
 ## Support Resources
 
-- **API Permissions Setup**: See `AZURE_AD_SETUP.md`
+- **Quick Start**: See `QUICK_START_GUIDE.md`
+- **Redirect URIs**: See `REDIRECT_URI_GUIDE.md`
+- **Complete Setup**: See `AZURE_AD_SETUP.md`
 - **Authentication Guide**: See `README_AUTHENTICATION.md`
 - **Service Principal Verification**: See `verify-sp.md`
 - **Microsoft Documentation**: [Azure AD App Registration](https://learn.microsoft.com/en-us/azure/active-directory/develop/)
 
 ## Summary
 
-✅ **Fixed authentication error** by implementing tenant-specific authentication
+✅ **Fixed AADSTS500113 error** by providing scripts to add redirect URIs
+✅ **Fixed AADSTS650057 error** by implementing proper API permissions
 ✅ **Added tenant selection** on login page before authentication  
-✅ **Created documentation** for API permissions setup
-✅ **Provided helper scripts** to automate permission configuration
+✅ **Implemented tenant-specific authentication** using proper authority
+✅ **Created comprehensive documentation** for setup and troubleshooting
+✅ **Provided automated scripts** for complete Azure AD configuration
 ✅ **Updated both frontends** (Node.js and Flask) with consistent behavior
 ✅ **Improved security** with tenant-specific token scoping
 
-The application now properly handles multi-tenant authentication with the correct API permissions!
+The application now properly handles multi-tenant authentication with correct redirect URIs and API permissions!

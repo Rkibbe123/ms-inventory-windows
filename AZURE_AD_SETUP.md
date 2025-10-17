@@ -1,6 +1,17 @@
 # Azure AD Application Setup Guide
 
-## Error: AADSTS650057 - Invalid Resource
+## Common Authentication Errors
+
+### Error: AADSTS500113 - No reply address is registered
+
+If you're encountering this error:
+```
+AADSTS500113: No reply address is registered for the application.
+```
+
+This means your Azure AD application needs redirect URIs (reply URLs) configured. **See Step 1 below.**
+
+### Error: AADSTS650057 - Invalid Resource
 
 If you're encountering this error:
 ```
@@ -9,7 +20,53 @@ in the requested permissions in the client's application registration.
 Resource value from request: https://management.azure.com
 ```
 
-This means your Azure AD application registration needs to be configured with the proper API permissions.
+This means your Azure AD application registration needs to be configured with the proper API permissions. **See Step 2 below.**
+
+## Setup Steps
+
+### Step 1: Configure Redirect URIs (Required)
+
+Redirect URIs (also called Reply URLs) tell Azure AD where to send authentication responses.
+
+#### Option A: Using PowerShell Script
+```powershell
+.\add-redirect-uris.ps1
+# Or for production deployment:
+.\add-redirect-uris.ps1 -BaseUrl "https://your-app.azurewebsites.net"
+```
+
+#### Option B: Using Bash Script
+```bash
+./add-redirect-uris.sh
+# Or for production deployment:
+./add-redirect-uris.sh "" "https://your-app.azurewebsites.net"
+```
+
+#### Option C: Manual Configuration via Azure Portal
+
+1. Go to [Azure Portal](https://portal.azure.com)
+2. Navigate to **Azure Active Directory** → **App registrations**
+3. Find your application: `9795693b-67cd-4165-b8a0-793833081db6`
+4. Click on **Authentication**
+5. If no Web platform exists, click **Add a platform** → **Web**
+6. Add these redirect URIs:
+   - **For Node.js (Express) development:** `http://localhost:3000/auth/redirect`
+   - **For Flask development:** `http://localhost:8000/getAToken`
+   - **For production:** `https://your-domain.com/auth/redirect` and/or `https://your-domain.com/getAToken`
+7. Click **Save** or **Configure**
+
+#### Option D: Using Azure CLI
+```bash
+APP_ID="9795693b-67cd-4165-b8a0-793833081db6"
+
+# Add redirect URIs
+az ad app update --id $APP_ID --web-redirect-uris \
+  "http://localhost:3000/auth/redirect" \
+  "http://localhost:8000/getAToken" \
+  "https://your-production-url.com/auth/redirect"
+```
+
+### Step 2: Configure API Permissions (Required)
 
 ## Required API Permissions
 
@@ -20,9 +77,17 @@ Your Azure AD application (App ID: `9795693b-67cd-4165-b8a0-793833081db6`) needs
 - **Permission**: user_impersonation (Delegated)
 - **Description**: Access Azure Service Management as organization users
 
-## Steps to Add API Permissions
+#### Option A: Using PowerShell Script
+```powershell
+.\add-api-permissions.ps1 -GrantAdminConsent
+```
 
-### Option 1: Using Azure Portal
+#### Option B: Using Bash Script
+```bash
+./add-api-permissions.sh --grant-consent
+```
+
+#### Option C: Using Azure Portal
 
 1. Go to [Azure Portal](https://portal.azure.com)
 2. Navigate to **Azure Active Directory** → **App registrations**
@@ -36,7 +101,7 @@ Your Azure AD application (App ID: `9795693b-67cd-4165-b8a0-793833081db6`) needs
 10. Click **Add permissions**
 11. Click **Grant admin consent for [Your Organization]** (if you have admin rights)
 
-### Option 2: Using Azure CLI
+#### Option D: Using Azure CLI
 
 ```bash
 # Login to Azure
@@ -61,7 +126,7 @@ az ad app permission add \
 az ad app permission admin-consent --id $APP_ID
 ```
 
-### Option 3: Using PowerShell
+#### Option E: Using PowerShell (Advanced)
 
 ```powershell
 # Connect to Azure AD
@@ -92,12 +157,17 @@ $resourceAccess.ResourceAccess.Add($permission)
 Set-AzureADApplication -ObjectId $sp.ObjectId -RequiredResourceAccess $resourceAccess
 ```
 
-## Verification
+## Step 3: Verification
 
-After adding the permissions, verify they were added correctly:
+After completing Steps 1 and 2, verify everything is configured correctly:
 
-### Using Azure Portal
-1. Go to your app registration
+### Verify Redirect URIs
+1. Go to your app registration in Azure Portal
+2. Click **Authentication**
+3. You should see your redirect URIs listed under the **Web** platform
+
+### Verify API Permissions
+1. Go to your app registration in Azure Portal
 2. Click **API permissions**
 3. You should see:
    - **Azure Service Management** with **user_impersonation** permission
@@ -105,6 +175,10 @@ After adding the permissions, verify they were added correctly:
 
 ### Using Azure CLI
 ```bash
+# Check redirect URIs
+az ad app show --id 9795693b-67cd-4165-b8a0-793833081db6 --query "web.redirectUris"
+
+# Check API permissions
 az ad app permission list --id 9795693b-67cd-4165-b8a0-793833081db6
 ```
 

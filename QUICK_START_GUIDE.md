@@ -4,12 +4,65 @@
 
 ✅ **Tenant Selection on Login Page** - Users now enter their tenant ID before signing in  
 ✅ **Tenant-Specific Authentication** - Uses the correct Azure AD tenant authority  
+✅ **Redirect URIs Configuration** - Scripts to add reply URLs
 ✅ **API Permissions Documentation** - Complete guide for setting up Azure AD app  
-✅ **Helper Scripts** - Automated scripts to add required permissions  
+✅ **Helper Scripts** - Automated scripts to configure everything  
 
 ## What You Need to Do Now
 
-### Step 1: Add API Permissions (REQUIRED)
+### Option A: Complete Setup (Recommended - One Command!)
+
+**Windows PowerShell:**
+```powershell
+.\setup-azure-ad.ps1
+# Or for production:
+.\setup-azure-ad.ps1 -ProductionUrl "https://your-app.azurewebsites.net"
+```
+
+**Linux/macOS:**
+```bash
+./setup-azure-ad.sh
+# Or for production:
+./setup-azure-ad.sh "" "https://your-app.azurewebsites.net"
+```
+
+This single command configures both redirect URIs and API permissions!
+
+### Option B: Manual Step-by-Step
+
+### Step 1: Add Redirect URIs (REQUIRED - Do This First!)
+
+Your Azure AD app needs redirect URIs configured. Choose one method:
+
+#### Option A: Automated Script (Recommended)
+
+**Windows PowerShell:**
+```powershell
+.\add-redirect-uris.ps1
+# Or for production:
+.\add-redirect-uris.ps1 -BaseUrl "https://your-app.azurewebsites.net"
+```
+
+**Linux/macOS:**
+```bash
+./add-redirect-uris.sh
+# Or for production:
+./add-redirect-uris.sh "" "https://your-app.azurewebsites.net"
+```
+
+#### Option B: Manual (Azure Portal)
+
+1. Go to https://portal.azure.com
+2. Navigate to **Azure Active Directory** → **App registrations**
+3. Search for App ID: `9795693b-67cd-4165-b8a0-793833081db6`
+4. Click **Authentication** → **Add a platform** → **Web**
+5. Add these redirect URIs:
+   - `http://localhost:3000/auth/redirect` (Node.js dev)
+   - `http://localhost:8000/getAToken` (Flask dev)
+   - Your production URL + `/auth/redirect` (if deploying)
+6. Click **Configure**
+
+### Step 2: Add API Permissions (REQUIRED)
 
 Your Azure AD app is missing the required API permission. Choose one method:
 
@@ -36,7 +89,7 @@ Your Azure AD app is missing the required API permission. Choose one method:
 7. Click **Add permissions**
 8. Click **Grant admin consent for [Your Organization]**
 
-### Step 2: Test the Login
+### Step 3: Test the Login
 
 1. Start the application:
    ```bash
@@ -93,8 +146,11 @@ Your Azure AD app is missing the required API permission. Choose one method:
 
 ## Troubleshooting
 
+### Getting AADSTS500113 - No reply address registered?
+👉 Make sure you completed **Step 1** (Add Redirect URIs).
+
 ### Still Getting AADSTS650057?
-👉 Make sure you completed **Step 1** (Add API Permissions) and granted admin consent.
+👉 Make sure you completed **Step 2** (Add API Permissions) and granted admin consent.
 
 ### Can't Find Tenant ID?
 👉 Azure Portal → Azure Active Directory → Overview → Tenant ID

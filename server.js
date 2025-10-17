@@ -19,6 +19,21 @@ if (!fs.existsSync(OUTPUTS_DIR)) {
   fs.mkdirSync(OUTPUTS_DIR, { recursive: true });
 }
 
+// Shared cache plugin for MSAL
+const tokenCache = {};
+const cachePlugin = {
+  beforeCacheAccess: async (cacheContext) => {
+    if (tokenCache.data) {
+      cacheContext.tokenCache.deserialize(tokenCache.data);
+    }
+  },
+  afterCacheAccess: async (cacheContext) => {
+    if (cacheContext.cacheHasChanged) {
+      tokenCache.data = cacheContext.tokenCache.serialize();
+    }
+  }
+};
+
 // MSAL Configuration for OAuth
 let cca = null;
 function getCca() {
@@ -34,6 +49,7 @@ function getCca() {
       authority: process.env.AZURE_AUTHORITY || 'https://login.microsoftonline.com/common',
       clientSecret
     },
+    cache: { cachePlugin },
     system: { loggerOptions: { loggerCallback: () => {} } }
   };
   cca = new msal.ConfidentialClientApplication(msalConfig);
@@ -50,8 +66,8 @@ function buildRedirectUri(req) {
 
 // Get account from session
 async function getAccount(req) {
-  if (!req.session || !req.session.homeAccountId) return null;
-  return await getCca().getTokenCache().getAccountByHomeId(req.session.homeAccountId);
+  if (!req.session || !req.session.account) return null;
+  return req.session.account;
 }
 
 // Get ARM token for user
@@ -71,7 +87,7 @@ async function acquireArmTokenForTenant(req, tenantId) {
 
 // Auth middleware
 function requireAuth(req, res, next) {
-  if (!req.session || !req.session.homeAccountId) {
+  if (!req.session || !req.session.account) {
     return res.status(401).json({ error: 'not_authenticated' });
   }
   next();
@@ -170,6 +186,7 @@ app.get('/auth/login', async (req, res) => {
         authority: `https://login.microsoftonline.com/${tenantId}`,
         clientSecret
       },
+      cache: { cachePlugin },
       system: { loggerOptions: { loggerCallback: () => {} } }
     });
     
@@ -203,6 +220,7 @@ app.get('/auth/redirect', async (req, res) => {
         authority: `https://login.microsoftonline.com/${tenantId}`,
         clientSecret
       },
+      cache: { cachePlugin },
       system: { loggerOptions: { loggerCallback: () => {} } }
     });
     
@@ -212,10 +230,12 @@ app.get('/auth/redirect', async (req, res) => {
       scopes: ['https://management.azure.com/.default', 'openid', 'profile', 'email', 'offline_access'],
       redirectUri
     });
+    console.log('[DEBUG] Token response from acquireTokenByCode:', JSON.stringify(tokenResponse, null, 2));
     const account = tokenResponse.account;
     req.session.homeAccountId = account.homeAccountId;
     req.session.username = account.username;
     req.session.primaryTenant = tenantId;
+    req.session.account = account;
     
     // Clear the temporary login tenant
     delete req.session.loginTenant;
@@ -233,16 +253,20 @@ app.post('/auth/logout', (req, res) => {
 
 // API endpoints
 app.get('/api/me', requireAuth, async (req, res) => {
-  res.json({ username: req.session.username, homeAccountId: req.session.homeAccountId });
+  res.json({ username: req.session.username, homeAccountId: req.session.account?.homeAccountId });
 });
 
 app.get('/api/tenants', requireAuth, async (req, res) => {
+  console.log('[DEBUG] /api/tenants called');
+  console.log('[DEBUG] req.session:', JSON.stringify(req.session, null, 2));
   try {
     const account = await getAccount(req);
+    console.log('[DEBUG] Using tenantId:', req.session.primaryTenant || 'common');
+    const tenantId = req.session.primaryTenant || account.tenantId;
     const result = await getCca().acquireTokenSilent({ 
       account, 
-      authority: 'https://login.microsoftonline.com/common', 
-      scopes: ['https://management.azure.com/.default'] 
+      authority: `https://login.microsoftonline.com/${tenantId}`, 
+      scopes: ['https://management.azure.com/.default', 'offline_access'] 
     });
     const token = result.accessToken;
     const { data } = await axios.get('https://management.azure.com/tenants?api-version=2020-01-01', {
@@ -251,6 +275,7 @@ app.get('/api/tenants', requireAuth, async (req, res) => {
     const tenants = (data.value || []).map((t) => ({ tenantId: t.tenantId, displayName: t.displayName || t.tenantId }));
     res.json({ tenants });
   } catch (err) {
+    console.log('[DEBUG] Token or API error:', err);
     res.status(500).json({ error: err.message });
   }
 });
